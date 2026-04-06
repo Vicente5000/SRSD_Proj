@@ -22,3 +22,51 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Maven output directory
+target/
+
+# Maven release plugin files
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# If using Maven Wrapper
+!.mvn/wrapper/maven-wrapper.jar
+
+# OS generated files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Generic backup ficles
+*.bak
+*.swp
+*~
+
+# IntelliJ IDEA project files
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# For those using the "New UI" or specific plugin state
+.idea_modules/
+cmake-build-*/
+
+# Local environment variables / Secrets
+.env
+.env.local
+local.properties
+
+# VS Code (in case a teammate prefers it)
+.vscode/
+*.code-workspace
