@@ -1,6 +1,7 @@
 package cli;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,7 +45,8 @@ public class LogAppend {
                 appendBatch(command.batchFile);
                 return;
             default:
-                System.out.println(INVALID);
+                System.err.println(INVALID);
+                System.exit(111);
         }
     }
 
@@ -149,12 +151,12 @@ public class LogAppend {
             }
         }
 
-        if (token == null || logPath == null) {
+        if ((token == null || logPath == null) && mode != Mode.BATCH){
             return null;
         }
 
         if (batchFile != null) {
-            if (timestamp != null || subjectType != null || mode != null || roomId != null) {
+            if (timestamp != null || subjectType != null || mode != Mode.BATCH || roomId != null) {
                 return null;
             }
             return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId, null,null);
@@ -306,10 +308,10 @@ public class LogAppend {
 
     private void appendBatch(String batchFile) {
         try{
-            List<String> lines = Files.readAllLines(Path.of(batchFile));
+            List<String> lines = Files.readAllLines(Path.of(batchFile), StandardCharsets.UTF_8);
             for(int i = 0; i < lines.size(); i++){
                 String line = lines.get(i);
-               handleBatch(line);
+                handleBatch(line);
             }
         } catch (IOException e) {
             System.err.println(INVALID);
@@ -319,7 +321,7 @@ public class LogAppend {
 
     private void handleBatch(String rawCommand){
         if(rawCommand.contains("-B")){
-            System.err.println("INVALID");
+            System.err.println(INVALID);
             return;
         }    
         handle(rawCommand);
