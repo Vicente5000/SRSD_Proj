@@ -310,32 +310,8 @@ public class LogRead {
 
     private enum Mode { STATE, ROOMS, INTERSECTION }
 
-    private static final class ParsedCommand {
-        private final Mode mode;
-        private final String token;
-        private final String logPath;
-        private final PersonType subjectType;
-        private final String subjectName;
-        private final List<String> intersectionNames;
+    private record ParsedCommand(Mode mode, String token, String logPath, PersonType subjectType, String subjectName,
+                                 List<String> intersectionNames) { }
 
-        private ParsedCommand(Mode mode, String token, String logPath, PersonType subjectType,
-                              String subjectName, List<String> intersectionNames) {
-            this.mode = mode;
-            this.token = token;
-            this.logPath = logPath;
-            this.subjectType = subjectType;
-            this.subjectName = subjectName;
-            this.intersectionNames = intersectionNames;
-        }
-    }
-
-    private static final class SubjectSpec {
-        private final PersonType type;
-        private final String name;
-
-        private SubjectSpec(PersonType type, String name) {
-            this.type = type;
-            this.name = name;
-        }
-    }
+    private record SubjectSpec(PersonType type, String name) { }
 }
