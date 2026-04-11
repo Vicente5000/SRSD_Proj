@@ -4,6 +4,7 @@ import java.util.List;
 public class LogRead {
     private static final String INVALID = "invalid";
     private static final String INTEGRITY_VIOLATION = "integrity violation";
+    private static final String UNIMPLEMENTED = "unimplemented";
 
     public void handle(String rawCommand) {
         ParsedCommand command = parse(rawCommand);
@@ -163,7 +164,7 @@ public class LogRead {
     }
 
     private void readIntersection(List<String> names) {
-
+        System.out.println(UNIMPLEMENTED);
     }
 
     private enum Mode {
