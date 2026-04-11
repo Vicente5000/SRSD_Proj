@@ -12,13 +12,6 @@ import java.io.*;
 import java.security.*;
 import java.util.Arrays;
 
-/**
- * Encryption — entry encryption with AES-256-GCM.
- *
- * Entry layout:
- * IV || cipherText || hashOfLastEntry
- *
- */
 public class Encryption {
 
     // ── Constants ────────────────────────────────────────────────────────────
@@ -73,9 +66,14 @@ public class Encryption {
         GCMParameterSpec gcmSpec = new GCMParameterSpec(GCM_TAG_BITS, entry.iv);
         cipher.init(Cipher.DECRYPT_MODE, encKey, gcmSpec);
         cipher.updateAAD(entry.hashOfLastEntry);
-        
-        byte[] plaintext = cipher.doFinal(entry.cipherText);
-        return deserializeRecord(plaintext);
+
+        try {
+            byte[] plaintext = cipher.doFinal(entry.cipherText);
+            lastEntryHash = sha256(entry.toBytes());
+            return deserializeRecord(plaintext);
+        } catch (AEADBadTagException e) {
+            throw new IntegrityViolationException(e); // ← clean signal to callers
+        }
     }
     
     public Record decrypt(String line)
@@ -187,8 +185,12 @@ public class Encryption {
         }
     }
 
-    private byte[] sha256(byte[] data) throws NoSuchAlgorithmException {
-        return MessageDigest.getInstance("SHA-256").digest(data);
+    private byte[] sha256(byte[] data) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(data);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e); // unreachable in practice
+        }
     }
 
     private byte[] randomBytes(int len) {
