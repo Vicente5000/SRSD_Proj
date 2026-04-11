@@ -15,25 +15,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class FileManager {
-    // ── Read all records ─────────────────────────────────────────────────────
 
-    /**
-     * Reads and decrypts every record in the file, verifying the hash chain
-     * as it goes. Throws IntegrityViolationException if any entry fails.
-     */
     public static List<Record> readRecords(Path filePath, Encryption encryption)
             throws IOException {
         validateArgs(filePath, encryption);
 
         if (!Files.exists(filePath)) {
-            return new ArrayList<>(); // empty log is valid
+            return new ArrayList<>();
         }
 
         List<String> lines = Files.readAllLines(filePath, StandardCharsets.UTF_8);
         List<Record> records = new ArrayList<>(lines.size());
 
         for (String line : lines) {
-            if (line.isBlank()) continue; // skip empty trailing lines
+            if (line.isBlank()) continue;
 
             try {
                 records.add(encryption.decrypt(line));
@@ -47,8 +42,6 @@ public final class FileManager {
 
         return records;
     }
-
-    // ── Write one record ─────────────────────────────────────────────────────
 
     /**
      * Appends one encrypted record to the file.
@@ -80,35 +73,6 @@ public final class FileManager {
                 StandardOpenOption.APPEND
         );
     }
-
-    // ── Combined: replay chain then append ───────────────────────────────────
-
-    /**
-     * The correct way to append a new record to an existing log.
-     *
-     * This method:
-     *   1. Reads + verifies the existing chain (advances lastEntryHash)
-     *   2. Appends the new encrypted record at the correct chain position
-     *   3. Returns all existing records so the caller can validate state
-     *
-     * This is the method LogAppend should always use.
-     */
-    public static List<Record> replayAndAppend(Path filePath, Record record, Encryption encryption)
-            throws IOException {
-        validateArgs(filePath, encryption);
-        if (record == null) {
-            throw new IllegalArgumentException("record must not be null");
-        }
-
-        // Step 1: replay existing chain — this advances lastEntryHash correctly
-        List<Record> existing = readRecords(filePath, encryption);
-
-        // Step 2: now encrypt and append (lastEntryHash is at the right position)
-        writeRecord(filePath, record, encryption);
-
-        return existing;
-    }
-    // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static void validateArgs(Path filePath, Encryption encryption) {
         if (filePath == null) {
