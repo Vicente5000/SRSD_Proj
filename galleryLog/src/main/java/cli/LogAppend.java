@@ -14,6 +14,8 @@ import crypto.KeyDerivation;
 import enums.*;
 import storage.FileManager;
 
+import javax.swing.text.JTextComponent;
+
 public class LogAppend {
     private static final String INVALID = "invalid";
     private static final String INTEGRITY_VIOLATION = "integrity violation";
@@ -28,11 +30,6 @@ public class LogAppend {
         ParsedCommand command = parse(rawCommand);
         if (command == null) {
             System.out.println(INVALID);
-            return;
-        }
-
-        if (!confirmToken(command.logPath, command.token)) {
-            System.out.println(INTEGRITY_VIOLATION);
             return;
         }
 
@@ -160,18 +157,14 @@ public class LogAppend {
             if (timestamp != null || subjectType != null || mode != null || roomId != null) {
                 return null;
             }
-            return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId);
+            return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId, null,null);
         }
 
         if (timestamp == null || subjectType == null || subjectName == null || mode == null) {
             return null;
         }
 
-        if (mode == Mode.LEAVE && roomId != null) {
-            return null;
-        }
-
-        return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId);
+        return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId, mode == Mode.ARRIVAL ? Action.ARRIVE : Action.LEAVE, roomId != null ? Place.ROOM : Place.GALLERY);
     }
 
     private Integer parseBoundedInt(String value) {
@@ -196,9 +189,6 @@ public class LogAppend {
         return null;
     }
 
-    private boolean confirmToken(String logPath, String token) {
-        return true;
-    }
 
     private void appendArrival(ParsedCommand command) {
         List<Record> records = loadRecords(command.logPath, command.token);
@@ -216,12 +206,15 @@ public class LogAppend {
         }
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
-        if((lastEntry == null && command.roomId != null)){
-            throw new InvalidParameterException(INVALID);
+        if(lastEntry == null ){
+            if(command.roomId != null){
+                throw new InvalidParameterException(INVALID);
+            }
+            addRecord(command);
+            return;
         }
-    
         int currentRoom = getUserRoom(lastEntry);
-        boolean inGallery =(currentRoom == -2);
+        boolean inGallery = (currentRoom != -2);
     
         if (inGallery && command.roomId == null) {
             throw new InvalidParameterException(INVALID);
@@ -255,7 +248,7 @@ public class LogAppend {
     private Record getLastUserEntry(String name, PersonType subjectType , List<Record> records){
         for(int i = records.size() - 1; i >= 0; i --){
             Record record = records.get(i);
-            if(record.name == name && record.type == subjectType){
+            if(record.name.equals(name) && record.type == subjectType){
                 return record;
             }
         }
@@ -273,8 +266,9 @@ public class LogAppend {
                 String line = lines.get(i);
                handleBatch(line);
             }
-        } catch (IOException e){
-
+        } catch (IOException e) {
+            System.out.println(INVALID);
+            System.exit(111);
         }
     }
 
@@ -303,7 +297,9 @@ public class LogAppend {
 
     private void addRecord(ParsedCommand command){
         try {
-            FileManager.replayAndAppend(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, Action.ARRIVE, Place.GALLERY, command.roomId), new Encryption(KeyDerivation.deriveKey(command.token)));
+            FileManager.replayAndAppend(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, command.action, command.place, command.roomId), new Encryption(KeyDerivation.deriveKey(command.token)));
+        } catch (IntegrityViolationException e) {
+            System.out.println(INTEGRITY_VIOLATION);
         } catch (IOException e) {
             throw new InvalidParameterException(INVALID);
         }
@@ -315,5 +311,5 @@ public class LogAppend {
         BATCH
     }
 
-    private static final record ParsedCommand (Mode mode, String token, String logPath, String batchFile, Integer timestamp, PersonType subjectType, String subjectName, Integer roomId) {}
+    private static final record ParsedCommand (Mode mode, String token, String logPath, String batchFile, Integer timestamp, PersonType subjectType, String subjectName, Integer roomId, Action action, Place place) {}
 }
