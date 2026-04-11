@@ -193,7 +193,7 @@ public class LogAppend {
     private void appendArrival(ParsedCommand command) {
         List<Record> records = loadRecords(command.logPath, command.token);
         if(records == null){
-            throw new InvalidParameterException(INVALID);
+            return;
         }
 
         if(records.isEmpty()){
@@ -256,7 +256,43 @@ public class LogAppend {
     }
 
     private void appendLeave(ParsedCommand command) {
-        System.out.println(UNIMPLEMENTED);
+        List<Record> records = loadRecords(command.logPath, command.token);
+        if(records == null){
+            return;
+        }
+
+        if(records.isEmpty()){
+            addRecord(command);
+            return;
+        }
+
+        if(command.timestamp <= records.getLast().timestamp){
+            throw new InvalidParameterException(INVALID);
+        }
+        Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
+
+        if(lastEntry == null ){
+            if(command.roomId != null){
+                throw new InvalidParameterException(INVALID);
+            }
+            addRecord(command);
+            return;
+        }
+        int currentRoom = getUserRoom(lastEntry);
+        boolean inGallery = (currentRoom != -2);
+    
+        if (inGallery && command.roomId == null) {
+            throw new InvalidParameterException(INVALID);
+        }
+        if (!inGallery && command.roomId != null) {
+            throw new InvalidParameterException(INVALID);
+        }
+    
+        if (currentRoom >= 0) {
+            throw new InvalidParameterException(INVALID);
+        }
+        
+        addRecord(command);
     }
 
     private void appendBatch(String batchFile) {
@@ -287,10 +323,10 @@ public class LogAppend {
             Encryption encryption = new Encryption(key);
             return FileManager.readRecords(Paths.get(logPath), encryption);
         } catch (IntegrityViolationException e) {
-            System.out.println(INTEGRITY_VIOLATION);
+            System.err.println(INTEGRITY_VIOLATION);
             return null;
         } catch (Exception e) {
-            System.out.println(INTEGRITY_VIOLATION);
+            System.err.println(INTEGRITY_VIOLATION);
             return null;
         }
     }
