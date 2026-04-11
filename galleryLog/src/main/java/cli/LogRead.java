@@ -37,7 +37,7 @@ public class LogRead {
                 readRooms(command.logPath, command.token, command.subjectType, command.subjectName);
                 return;
             case INTERSECTION:
-                readIntersection(command.intersectionNames);
+                readIntersection(command.logPath,command.token,command.intersectionNames);
                 return;
             default:
                 System.out.println(INVALID);
@@ -112,7 +112,7 @@ public class LogRead {
         for (int roomId : roomIds) {
             List<String> names = new ArrayList<>(roomOccupants.get(roomId));
             Collections.sort(names);
-            sb.append(roomId).append(": ").append(String.join(",", names)).append("\n");
+            sb.append(roomId).append(", ").append(String.join(",", names)).append("\n");
         }
 
         System.out.print(sb);
@@ -142,8 +142,104 @@ public class LogRead {
     }
 
 
-    private void readIntersection(List<String> names) {
-        System.out.println(UNIMPLEMENTED);
+    private void readIntersection(String logPath, String token, List<String> intersectionNames) {
+        List<Record> records = loadRecords(logPath, token);
+        if (records == null) return;
+
+
+        List<SubjectSpec> subjects = new ArrayList<>();
+        for (String encoded : intersectionNames) {
+            String[] parts = encoded.split("\u0000", 2);
+            if (parts.length != 2) return;
+            PersonType type = "EMPLOYEE".equals(parts[0]) ? PersonType.EMPLOYEE : PersonType.GUEST;
+            subjects.add(new SubjectSpec(type, parts[1]));
+        }
+
+        Map<String, List<int[]>> personRoomIntervals = new HashMap<>();
+
+        for (SubjectSpec subject : subjects) {
+            String key = subject.type.name() + "\u0000" + subject.name;
+            personRoomIntervals.put(key, new ArrayList<>());
+        }
+
+        Map<String, int[]> currentRoomEntry = new HashMap<>();
+
+        for (Record record : records) {
+            String key = record.type.name() + "\u0000" + record.name;
+            if (!personRoomIntervals.containsKey(key)) continue;
+            if (record.place != Place.ROOM) continue;
+
+            if (record.action == Action.ARRIVE) {
+                currentRoomEntry.put(key, new int[]{record.roomId, (int) record.timestamp});
+
+            } else {
+                int[] entry = currentRoomEntry.remove(key);
+                if (entry != null) {
+                    personRoomIntervals.get(key).add(new int[]{entry[0], entry[1], (int) record.timestamp});
+                }
+            }
+        }
+
+        for (Map.Entry<String, int[]> open : currentRoomEntry.entrySet()) {
+            int[] entry = open.getValue();
+            personRoomIntervals.get(open.getKey()).add(new int[]{entry[0], entry[1], Integer.MAX_VALUE});
+        }
+
+
+        Set<Integer> candidateRooms = new HashSet<>();
+        for (int[] interval : personRoomIntervals.get(subjects.get(0).type.name() + "\u0000" + subjects.get(0).name)) {
+            candidateRooms.add(interval[0]);
+        }
+
+        List<Integer> result = new ArrayList<>();
+
+        for (int roomId : candidateRooms) {
+            if (allOverlappedInRoom(roomId, subjects, personRoomIntervals)) {
+                result.add(roomId);
+            }
+        }
+
+        if (result.isEmpty()) return;
+
+        Collections.sort(result);
+        System.out.println(result.stream()
+                .map(String::valueOf)
+                .collect(java.util.stream.Collectors.joining(",")));
+    }
+
+    private boolean allOverlappedInRoom(int roomId, List<SubjectSpec> subjects,
+                                        Map<String, List<int[]>> personRoomIntervals) {
+        List<List<int[]>> allIntervals = new ArrayList<>();
+
+        for (SubjectSpec subject : subjects) {
+            String key = subject.type.name() + "\u0000" + subject.name;
+            List<int[]> inRoom = new ArrayList<>();
+            for (int[] interval : personRoomIntervals.get(key)) {
+                if (interval[0] == roomId) inRoom.add(interval);
+            }
+            if (inRoom.isEmpty()) return false;
+            allIntervals.add(inRoom);
+        }
+
+        return hasOverlap(allIntervals, 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
+    }
+
+    private boolean hasOverlap(List<List<int[]>> allIntervals, int subjectIndex,
+                               int overlapStart, int overlapEnd) {
+        if (subjectIndex == allIntervals.size()) {
+            return overlapStart < overlapEnd;
+        }
+
+        for (int[] interval : allIntervals.get(subjectIndex)) {
+            int newStart = Math.max(overlapStart, interval[1]);
+            int newEnd   = Math.min(overlapEnd,   interval[2]);
+            if (newStart < newEnd) {
+                if (hasOverlap(allIntervals, subjectIndex + 1, newStart, newEnd)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
 
@@ -221,8 +317,6 @@ public class LogRead {
     private PersonType toSubjectTag(String flag) {
         return "-E".equals(flag) ? PersonType.EMPLOYEE : PersonType.GUEST;
     }
-
-    // ── Inner types ───────────────────────────────────────────────────────────
 
     private enum Mode { STATE, ROOMS, INTERSECTION }
 
