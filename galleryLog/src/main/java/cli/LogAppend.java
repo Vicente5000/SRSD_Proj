@@ -1,23 +1,9 @@
-
 package cli;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.util.List;
-
 public class LogAppend {
-
-    private class Command{
-        Integer timestamp;
-        String token;
-        String employee;
-        String guest;
-        boolean isArrival;
-        boolean isLeave;
-        Integer roomId;
-        String logPath;
-        String batchFile;
-    }
+    private static final String INVALID = "invalid";
+    private static final String INTEGRITY_VIOLATION = "integrity violation";
+    private static final String UNIMPLEMENTED = "unimplemented";
 
     public static void main(String[] args) {
         String rawCommand = String.join(" ", args);
@@ -25,161 +11,209 @@ public class LogAppend {
     }
 
     public void handle(String rawCommand) {
-        try {
-            Command cmd = parse(rawCommand);
+        ParsedCommand command = parse(rawCommand);
+        if (command == null) {
+            System.out.println(INVALID);
+            return;
+        }
 
-            if (cmd.batchFile != null) {
-                handleBatch(cmd);
-            } else {
-                execute(cmd);
-            }
+        if (!confirmToken(command.logPath, command.token)) {
+            System.out.println(INTEGRITY_VIOLATION);
+            return;
+        }
 
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        switch (command.mode) {
+            case ARRIVAL:
+                appendArrival();
+                return;
+            case LEAVE:
+                appendLeave();
+                return;
+            case BATCH:
+                appendBatch(command.batchFile);
+                return;
+            default:
+                System.out.println(INVALID);
         }
     }
 
-    private Command parse(String raw) throws Exception {
-        String[] tokens = raw.split("\\s+");
+    private ParsedCommand parse(String rawCommand) {
+        if (rawCommand == null) {
+            return null;
+        }
 
-        Command cmd = new Command();
+        String trimmed = rawCommand.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
 
-        for (int i = 0; i < tokens.length; i++) {
-            String t = tokens[i];
+        String[] parts = trimmed.split("\\s+");
+        if (parts.length < 1) {
+            return null;
+        }
 
-            switch (t) {
-                case "logappend":
-                    break;
+        Integer timestamp = null;
+        String token = null;
+        String logPath = null;
+        String subjectType = null;
+        String subjectName = null;
+        Integer roomId = null;
+        String batchFile = null;
+        Mode mode = null;
+
+        for (int index = 0; index < parts.length; index++) {
+            String part = parts[index];
+
+            switch (part) {
                 case "-T":
-                    cmd.timestamp = parseIntSafe(next(tokens, ++i));
-                    break;
-
-                case "-K":
-                    cmd.token = next(tokens, ++i);
-                    break;
-
-                case "-E":
-                    cmd.employee = next(tokens, ++i);
-                    break;
-
-                case "-G":
-                    cmd.guest = next(tokens, ++i);
-                    break;
-
-                case "-A":
-                    cmd.isArrival = true;
-                    break;
-
-                case "-L":
-                    cmd.isLeave = true;
-                    break;
-
-                case "-R":
-                    cmd.roomId = parseIntSafe(next(tokens, ++i));
-                    break;
-
-                case "-B":
-                    cmd.batchFile = next(tokens, ++i);
-                    break;
-
-                default:
-                    // last token should be log path
-                    if (i == tokens.length - 1) {
-                        cmd.logPath = t;
-                    } else {
-                        throw new Exception("Unknown argument: " + t);
+                    if (timestamp != null || index + 1 >= parts.length) {
+                        return null;
                     }
+                    timestamp = parseBoundedInt(parts[++index]);
+                    if (timestamp == null || timestamp == 0) {
+                        return null;
+                    }
+                    break;
+                case "-K":
+                    if (token != null || index + 1 >= parts.length) {
+                        return null;
+                    }
+                    token = parts[++index];
+                    if (token.startsWith("-")) {
+                        return null;
+                    }
+                    break;
+                case "-E":
+                case "-G":
+                    if (subjectType != null || index + 1 >= parts.length) {
+                        return null;
+                    }
+                    subjectType = toSubjectTag(part);
+                    subjectName = parts[++index];
+                    if (subjectName.startsWith("-")) {
+                        return null;
+                    }
+                    break;
+                case "-A":
+                    if (mode != null) {
+                        return null;
+                    }
+                    mode = Mode.ARRIVAL;
+                    break;
+                case "-L":
+                    if (mode != null) {
+                        return null;
+                    }
+                    mode = Mode.LEAVE;
+                    break;
+                case "-R":
+                    if (roomId != null || index + 1 >= parts.length) {
+                        return null;
+                    }
+                    roomId = parseBoundedInt(parts[++index]);
+                    if (roomId == null) {
+                        return null;
+                    }
+                    break;
+                case "-B":
+                    if (batchFile != null || index + 1 >= parts.length) {
+                        return null;
+                    }
+                    batchFile = parts[++index];
+                    if (batchFile.startsWith("-")) {
+                        return null;
+                    }
+                    break;
+                default:
+                    if (part.startsWith("-")) {
+                        return null;
+                    }
+
+                    if (logPath != null) {
+                        return null;
+                    }
+                    logPath = part;
+                    break;
             }
         }
 
-        return cmd;
-    }
-
-    private void handleBatch(Command cmd) throws Exception {
-        File file = new File(cmd.batchFile);
-
-        if (!file.exists()) {
-            System.out.println("invalid");
-            System.exit(111);
+        if (token == null || logPath == null) {
+            return null;
         }
 
-        List<String> lines = Files.readAllLines(file.toPath());
-
-        for (String line : lines) {
-            try {
-                Command sub = parse(line);
-                if (sub.batchFile != null){
-                    System.err.println("Cannot place batch commands inside batch file");
-                } else{
-                    validate(sub);
-                    execute(sub);
-                }
-            } catch (Exception e) {
-                System.out.println("invalid");
+        if (batchFile != null) {
+            if (timestamp != null || subjectType != null || mode != null || roomId != null) {
+                return null;
             }
+            return new ParsedCommand(Mode.BATCH, token, logPath, batchFile);
         }
+
+        if (timestamp == null || subjectType == null || subjectName == null || mode == null) {
+            return null;
+        }
+
+        if (mode == Mode.LEAVE && roomId != null) {
+            return null;
+        }
+
+        return new ParsedCommand(mode, token, logPath, null);
     }
 
-    private void validate(Command c) throws Exception {
-
-        // Required fields
-        if (c.batchFile == null) {
-            if (c.timestamp == null || c.token == null || c.logPath == null)
-                throw new Exception("Missing required args");
-        }
-
-        if (c.employee != null && c.guest != null)
-            throw new Exception("Cannot have both -E and -G");
-
-        if (c.employee == null && c.guest == null && c.batchFile == null)
-            throw new Exception("Must specify -E or -G");
-
-        if (c.isArrival && c.isLeave)
-            throw new Exception("Cannot have both -A and -L");
-
-        if (!c.isArrival && !c.isLeave && c.batchFile == null)
-            throw new Exception("Must specify -A or -L");
-
-        if (c.employee != null && !c.employee.matches("[a-zA-Z]+"))
-            throw new Exception("Invalid employee name");
-
-        if (c.guest != null && !c.guest.matches("[a-zA-Z]+"))
-            throw new Exception("Invalid guest name");
-
-        if (c.token != null && !c.token.matches("[a-zA-Z0-9]+"))
-            throw new Exception("Invalid token");
-
-        if (c.timestamp != null && (c.timestamp < 1 || c.timestamp > 1073741823)) {
-            throw new Exception("Invalid timestamp");
-        }
-
-        if (c.roomId != null && (c.roomId < 0 || c.roomId > 1073741823)) {
-            throw new Exception("Invalid room");
-        }
-    }
-
-    private String next(String[] tokens, int i) throws Exception {
-        if (i >= tokens.length) throw new Exception("Missing value");
-        return tokens[i];
-    }
-
-    private Integer parseIntSafe(String s) throws Exception {
+    private Integer parseBoundedInt(String value) {
         try {
-            return Integer.parseInt(s);
-        } catch (Exception e) {
-            throw new Exception("Invalid number");
+            int parsed = Integer.parseInt(value);
+            if (parsed < 0 || parsed > 1073741823) {
+                return null;
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            return null;
         }
     }
 
-    private void execute(Command cmd){
-        System.out.println("Timestamp: " + cmd.timestamp);
-        System.out.println("Token: " + cmd.token);
-        System.out.println("Employee: " + cmd.employee);
-        System.out.println("Guest: " + cmd.guest);
-        System.out.println("LogFile: " + cmd.logPath);
-        System.out.println("Arrival: " + cmd.isArrival);
-        System.out.println("Departure: " + cmd.isLeave);
-        System.out.println("BatchFile: " + cmd.batchFile);
+    private String toSubjectTag(String flag) {
+        if ("-E".equals(flag)) {
+            return "Employee";
+        }
+        if ("-G".equals(flag)) {
+            return "Guest";
+        }
+        return null;
     }
 
+    private boolean confirmToken(String logPath, String token) {
+        return true;
+    }
+
+    private void appendArrival() {
+        System.out.println(UNIMPLEMENTED);
+    }
+
+    private void appendLeave() {
+        System.out.println(UNIMPLEMENTED);
+    }
+
+    private void appendBatch(String batchFile) {
+        System.out.println(UNIMPLEMENTED);
+    }
+
+    private enum Mode {
+        ARRIVAL,
+        LEAVE,
+        BATCH
+    }
+
+    private static final class ParsedCommand {
+        private final Mode mode;
+        private final String token;
+        private final String logPath;
+        private final String batchFile;
+
+        private ParsedCommand(Mode mode, String token, String logPath, String batchFile) {
+            this.mode = mode;
+            this.token = token;
+            this.logPath = logPath;
+            this.batchFile = batchFile;
+        }
+    }
 }
