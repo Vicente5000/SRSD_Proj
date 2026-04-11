@@ -5,7 +5,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.InvalidParameterException;
 import java.util.List;
 
 import model.Record;
@@ -14,8 +13,6 @@ import crypto.IntegrityViolationException;
 import crypto.KeyDerivation;
 import enums.*;
 import storage.FileManager;
-
-import javax.swing.text.JTextComponent;
 
 public class LogAppend {
     private static final String INVALID = "invalid";
@@ -30,7 +27,7 @@ public class LogAppend {
     public void handle(String rawCommand) {
         ParsedCommand command = parse(rawCommand);
         if (command == null) {
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             return;
         }
 
@@ -45,7 +42,7 @@ public class LogAppend {
                 appendBatch(command.batchFile);
                 return;
             default:
-                System.err.println(INVALID);
+                System.out.println(INVALID);
                 System.exit(111);
         }
     }
@@ -92,34 +89,46 @@ public class LogAppend {
                         return null;
                     }
                     token = parts[++index];
-                    if (token.startsWith("-")) {
+                    if (!token.matches("[a-zA-Z0-9]+") || token.startsWith("-")) {
                         return null;
                     }
                     break;
                 case "-E":
+                    if(subjectType == PersonType.GUEST){
+                        return null;
+                    }
                     if (index + 1 >= parts.length) {
                         return null;
                     }
                     subjectType = PersonType.EMPLOYEE;
                     subjectName = parts[++index];
-                    if (subjectName.startsWith("-")) {
+                    if (!subjectName.matches("[a-zA-Z]+") || subjectName.startsWith("-")) {
                         return null;
                     }
                     break;
                 case "-G":
+                    if(subjectType == PersonType.EMPLOYEE){
+                        return null;
+                    }
                     if (index + 1 >= parts.length) {
                         return null;
                     }
                     subjectType = PersonType.GUEST;
                     subjectName = parts[++index];
-                    if (subjectName.startsWith("-")) {
+                    if (!subjectName.matches("[a-zA-Z]+") || subjectName.startsWith("-")) {
                         return null;
                     }
                     break;
                 case "-A":
+                    if(mode != null){
+                        return null;
+                    }
                     mode = Mode.ARRIVAL;
                     break;
                 case "-L":
+                    if(mode != null){
+                        return null;
+                    }
                     mode = Mode.LEAVE;
                     break;
                 case "-R":
@@ -193,48 +202,46 @@ public class LogAppend {
 
 
     private void appendArrival(ParsedCommand command) {
-        List<Record> records = loadRecords(command.logPath, command.token);
+        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token));
+        List<Record> records = loadRecords(command.logPath, command.token, enc);
         if(records == null){
             return;
         }
 
         if(records.isEmpty()){
-            addRecord(command);
+            addRecord(command, 0, enc);
             return;
         }
 
         if(command.timestamp <= records.getLast().timestamp){
-            System.err.println(INTEGRITY_VIOLATION);
+            System.out.println(INTEGRITY_VIOLATION);
             System.exit(111);
         }
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
             if(command.roomId != null){
-                System.err.println(INVALID);
+                System.out.println(INVALID);
                 System.exit(111);
             }
-            addRecord(command);
+            addRecord(command, 0, enc);
             return;
         }
         int currentRoom = getUserRoom(lastEntry);
-        boolean inGallery = (currentRoom != -2);
     
-        if (inGallery && command.roomId == null) {
-            System.err.println(INVALID);
-            System.exit(111);
-        }
-        if (!inGallery && command.roomId != null) {
-            System.err.println(INVALID);
-            System.exit(111);
-        }
-    
-        if (currentRoom >= 0) {
-            System.err.println(INVALID);
-            System.exit(111);
+        if (currentRoom == -2) {
+            if (command.roomId != null) {
+                System.out.println(INVALID); System.exit(111);
+            }
+        } else if (currentRoom == -1) {
+            if (command.roomId == null) {
+                System.out.println(INVALID); System.exit(111);
+            }
+        } else {
+            System.out.println(INVALID); System.exit(111);
         }
         
-        addRecord(command);
+        addRecord(command, lastEntry.timestamp, enc);
     }
 
     private int getUserRoom(Record record){
@@ -263,25 +270,26 @@ public class LogAppend {
     }
 
     private void appendLeave(ParsedCommand command) {
-        List<Record> records = loadRecords(command.logPath, command.token);
+        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token));
+        List<Record> records = loadRecords(command.logPath, command.token,enc);
         if(records == null){
             return;
         }
 
         if(records.isEmpty()){
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             System.exit(111);
         }
 
         if(command.timestamp <= records.getLast().timestamp){
-            System.err.println(INTEGRITY_VIOLATION);
+            System.out.println(INTEGRITY_VIOLATION);
             System.exit(111);
         }
 
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             System.exit(111);
         }
 
@@ -289,21 +297,21 @@ public class LogAppend {
         boolean inGallery = (currentRoom != -2);
     
         if(!inGallery){
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             System.exit(111);
         }
 
         if (currentRoom == -1 && command.roomId != null) {
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             System.exit(111);
         }
 
         if (currentRoom >= 0 && (command.roomId == null || currentRoom != command.roomId)) {
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             System.exit(111);
         }
 
-        addRecord(command);
+        addRecord(command, lastEntry.timestamp, enc);
     }
 
     private void appendBatch(String batchFile) {
@@ -314,42 +322,41 @@ public class LogAppend {
                 handleBatch(line);
             }
         } catch (IOException e) {
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             System.exit(111);
         }
     }
 
     private void handleBatch(String rawCommand){
         if(rawCommand.contains("-B")){
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             return;
         }    
         handle(rawCommand);
         
     }
 
-    private List<Record> loadRecords(String logPath, String token) {
+    private List<Record> loadRecords(String logPath, String token, Encryption enc) {
         try {
             byte[] key = KeyDerivation.deriveKey(token);
-            Encryption encryption = new Encryption(key);
-            return FileManager.readRecords(Paths.get(logPath), encryption);
+            return FileManager.readRecords(Paths.get(logPath), enc);
         } catch (IntegrityViolationException e) {
-            System.err.println(INTEGRITY_VIOLATION);
+            System.out.println(INTEGRITY_VIOLATION);
             return null;
         } catch (Exception e) {
-            System.err.println(INTEGRITY_VIOLATION);
+            System.out.println(INTEGRITY_VIOLATION);
             return null;
         }
     }
 
-    private void addRecord(ParsedCommand command){
+    private void addRecord(ParsedCommand command, long lastTimeStamp, Encryption enc){
         try {
-            FileManager.replayAndAppend(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, command.action, command.place, command.roomId), new Encryption(KeyDerivation.deriveKey(command.token)));
+            FileManager.writeRecord(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, command.action, command.place, command.roomId, lastTimeStamp), enc);
         } catch (IntegrityViolationException e) {
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             System.exit(111);
         } catch (IOException e) {
-            System.err.println(INVALID);
+            System.out.println(INVALID);
             System.exit(111);
         }
     }
