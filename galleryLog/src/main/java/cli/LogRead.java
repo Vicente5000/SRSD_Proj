@@ -1,3 +1,5 @@
+package cli;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -5,6 +7,11 @@ public class LogRead {
     private static final String INVALID = "invalid";
     private static final String INTEGRITY_VIOLATION = "integrity violation";
     private static final String UNIMPLEMENTED = "unimplemented";
+
+    public static void main(String[] args) {
+        String rawCommand = String.join(" ", args);
+        new LogRead().handle(rawCommand);
+    }
 
     public void handle(String rawCommand) {
         ParsedCommand command = parse(rawCommand);

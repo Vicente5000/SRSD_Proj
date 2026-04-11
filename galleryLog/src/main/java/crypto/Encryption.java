@@ -1,6 +1,10 @@
-import Enums.Action;
-import Enums.PersonType;
-import Enums.Place;
+package crypto;
+
+import enums.Action;
+import enums.PersonType;
+import enums.Place;
+import model.Entry;
+import model.Record;
 
 import javax.crypto.*;
 import javax.crypto.spec.*;

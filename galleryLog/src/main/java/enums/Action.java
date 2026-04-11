@@ -1,3 +1,3 @@
-package Enums;
+package enums;
 
 public enum Action {ARRIVE, LEAVE}

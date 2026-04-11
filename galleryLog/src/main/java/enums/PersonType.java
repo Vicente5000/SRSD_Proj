@@ -1,4 +1,4 @@
-package Enums;
+package enums;
 
 public enum PersonType { EMPLOYEE, GUEST }
 

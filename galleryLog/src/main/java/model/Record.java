@@ -1,6 +1,8 @@
-import Enums.Action;
-import Enums.PersonType;
-import Enums.Place;
+package model;
+
+import enums.Action;
+import enums.PersonType;
+import enums.Place;
 
 import java.time.Instant;
 import java.nio.charset.StandardCharsets;
