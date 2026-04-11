@@ -13,10 +13,6 @@ import java.security.*;
 import java.util.Arrays;
 
 public class Encryption {
-
-    // ── Constants ────────────────────────────────────────────────────────────
-    public static final byte RECORD_VERSION = 0x01;
-
     private static final int IV_LEN = Entry.IV_LEN;
     private static final int GCM_TAG_BITS = 128;
     private static final int HASH_LEN = Entry.HASH_LEN;
@@ -32,17 +28,6 @@ public class Encryption {
         this.encKey = new SecretKeySpec(encryptionKey, "AES");
     }
 
-    // ── Entry encryption ─────────────────────────────────────────────────────
-
-    public Entry encrypt(String plaintext)
-            throws IOException, NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException, InvalidKeyException,
-            IllegalBlockSizeException, BadPaddingException {
-        if (plaintext == null) {
-            throw new IllegalArgumentException("plaintext must not be null");
-        }
-        return encryptBytes(plaintext.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-    }
 
     public Entry encrypt(Record record)
             throws IOException, NoSuchPaddingException, NoSuchAlgorithmException,
@@ -72,7 +57,7 @@ public class Encryption {
             lastEntryHash = sha256(entry.toBytes());
             return deserializeRecord(plaintext);
         } catch (AEADBadTagException e) {
-            throw new IntegrityViolationException(e); // ← clean signal to callers
+            throw new IntegrityViolationException(e);
         }
     }
     
@@ -104,8 +89,6 @@ public class Encryption {
         lastEntryHash = sha256(entry.toBytes());
         return entry;
     }
-
-    // ── Record serialization / deserialization ───────────────────────────────
 
     public byte[] serializeRecord(Record record) throws IOException {
         if (record == null) {
@@ -189,7 +172,7 @@ public class Encryption {
         try {
             return MessageDigest.getInstance("SHA-256").digest(data);
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e); // unreachable in practice
+            throw new RuntimeException("SHA-256 not available", e);
         }
     }
 
