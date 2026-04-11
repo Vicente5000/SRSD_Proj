@@ -1,9 +1,25 @@
 package cli;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.InvalidParameterException;
+import java.util.List;
+
+import model.Record;
+import enums.PersonType;
+import crypto.Encryption;
+import crypto.IntegrityViolationException;
+import crypto.KeyDerivation;
+import enums.*;
+import storage.FileManager;
+
 public class LogAppend {
     private static final String INVALID = "invalid";
     private static final String INTEGRITY_VIOLATION = "integrity violation";
     private static final String UNIMPLEMENTED = "unimplemented";
+    private static final String PATH = "./logs/Logs.csv";
 
     public static void main(String[] args) {
         String rawCommand = String.join(" ", args);
@@ -24,10 +40,10 @@ public class LogAppend {
 
         switch (command.mode) {
             case ARRIVAL:
-                appendArrival();
+                appendArrival(command);
                 return;
             case LEAVE:
-                appendLeave();
+                appendLeave(command);
                 return;
             case BATCH:
                 appendBatch(command.batchFile);
@@ -55,7 +71,7 @@ public class LogAppend {
         Integer timestamp = null;
         String token = null;
         String logPath = null;
-        String subjectType = null;
+        PersonType subjectType = null;
         String subjectName = null;
         Integer roomId = null;
         String batchFile = null;
@@ -66,7 +82,7 @@ public class LogAppend {
 
             switch (part) {
                 case "-T":
-                    if (timestamp != null || index + 1 >= parts.length) {
+                    if (index + 1 >= parts.length) {
                         return null;
                     }
                     timestamp = parseBoundedInt(parts[++index]);
@@ -75,7 +91,7 @@ public class LogAppend {
                     }
                     break;
                 case "-K":
-                    if (token != null || index + 1 >= parts.length) {
+                    if (index + 1 >= parts.length) {
                         return null;
                     }
                     token = parts[++index];
@@ -84,30 +100,33 @@ public class LogAppend {
                     }
                     break;
                 case "-E":
-                case "-G":
-                    if (subjectType != null || index + 1 >= parts.length) {
+                    if (index + 1 >= parts.length) {
                         return null;
                     }
-                    subjectType = toSubjectTag(part);
+                    subjectType = PersonType.EMPLOYEE;
+                    subjectName = parts[++index];
+                    if (subjectName.startsWith("-")) {
+                        return null;
+                    }
+                    break;
+                case "-G":
+                    if (index + 1 >= parts.length) {
+                        return null;
+                    }
+                    subjectType = PersonType.GUEST;
                     subjectName = parts[++index];
                     if (subjectName.startsWith("-")) {
                         return null;
                     }
                     break;
                 case "-A":
-                    if (mode != null) {
-                        return null;
-                    }
                     mode = Mode.ARRIVAL;
                     break;
                 case "-L":
-                    if (mode != null) {
-                        return null;
-                    }
                     mode = Mode.LEAVE;
                     break;
                 case "-R":
-                    if (roomId != null || index + 1 >= parts.length) {
+                    if (index + 1 >= parts.length) {
                         return null;
                     }
                     roomId = parseBoundedInt(parts[++index]);
@@ -116,7 +135,7 @@ public class LogAppend {
                     }
                     break;
                 case "-B":
-                    if (batchFile != null || index + 1 >= parts.length) {
+                    if (index + 1 >= parts.length) {
                         return null;
                     }
                     batchFile = parts[++index];
@@ -129,9 +148,6 @@ public class LogAppend {
                         return null;
                     }
 
-                    if (logPath != null) {
-                        return null;
-                    }
                     logPath = part;
                     break;
             }
@@ -145,7 +161,7 @@ public class LogAppend {
             if (timestamp != null || subjectType != null || mode != null || roomId != null) {
                 return null;
             }
-            return new ParsedCommand(Mode.BATCH, token, logPath, batchFile);
+            return new ParsedCommand(Mode.BATCH, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId);
         }
 
         if (timestamp == null || subjectType == null || subjectName == null || mode == null) {
@@ -156,7 +172,7 @@ public class LogAppend {
             return null;
         }
 
-        return new ParsedCommand(mode, token, logPath, null);
+        return new ParsedCommand(Mode.BATCH, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId);
     }
 
     private Integer parseBoundedInt(String value) {
@@ -185,16 +201,78 @@ public class LogAppend {
         return true;
     }
 
-    private void appendArrival() {
-        System.out.println(UNIMPLEMENTED);
+    private void appendArrival(ParsedCommand command) {
+        List<Record> records = loadRecords(PATH, command.token);
+        if(records == null){
+            addRecord(command);
+            return;
+        }
+
+        if(command.timestamp <= records.getLast().timestamp){
+            throw new InvalidParameterException(INVALID);
+        }
+        Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
+        if((lastEntry == null && command.roomId != null)){
+            throw new InvalidParameterException(INVALID);
+        }
+        addRecord(command);
     }
 
-    private void appendLeave() {
+    private Record getLastUserEntry(String name, PersonType subjectType , List<Record> records){
+        for(int i = records.size() - 1; i >= 0; i --){
+            Record record = records.get(i);
+            if(record.name == name && record.type == subjectType){
+                return record;
+            }
+        }
+        return null;
+    }
+
+    private void appendLeave(ParsedCommand command) {
         System.out.println(UNIMPLEMENTED);
     }
 
     private void appendBatch(String batchFile) {
-        System.out.println(UNIMPLEMENTED);
+        try{
+            List<String> lines = Files.readAllLines(Path.of(batchFile));
+            for(int i = 0; i < lines.size(); i++){
+                String line = lines.get(i);
+               handleBatch(line);
+            }
+        } catch (IOException e){
+
+        }
+    }
+
+    private void handleBatch(String rawCommand){
+        if(rawCommand.contains("-B")){
+            System.err.println("Batch file cannot contain batch command");
+            return;
+        }    
+        handle(rawCommand);
+        
+    }
+
+    private List<Record> loadRecords(String logPath, String token) {
+        try {
+            byte[] key = KeyDerivation.deriveKey(token);
+            Encryption encryption = new Encryption(key);
+            return FileManager.readRecords(Paths.get(logPath), encryption);
+        } catch (IntegrityViolationException e) {
+            System.out.println(INTEGRITY_VIOLATION);
+            return null;
+        } catch (Exception e) {
+            System.out.println(INTEGRITY_VIOLATION);
+            return null;
+        }
+    }
+
+    private void addRecord(ParsedCommand command){
+        try {
+            FileManager.replayAndAppend(Path.of(PATH), new Record(command.timestamp, command.subjectType, command.subjectName, Action.ARRIVE, Place.GALLERY, command.roomId), new Encryption(KeyDerivation.deriveKey(command.token)));
+        } catch (IOException e) {
+            throw new InvalidParameterException(INVALID);
+        }
     }
 
     private enum Mode {
@@ -203,17 +281,5 @@ public class LogAppend {
         BATCH
     }
 
-    private static final class ParsedCommand {
-        private final Mode mode;
-        private final String token;
-        private final String logPath;
-        private final String batchFile;
-
-        private ParsedCommand(Mode mode, String token, String logPath, String batchFile) {
-            this.mode = mode;
-            this.token = token;
-            this.logPath = logPath;
-            this.batchFile = batchFile;
-        }
-    }
+    private static final record ParsedCommand (Mode mode, String token, String logPath, String batchFile, Integer timestamp, PersonType subjectType, String subjectName, Integer roomId) {}
 }
