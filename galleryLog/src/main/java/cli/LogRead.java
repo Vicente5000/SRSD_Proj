@@ -1,6 +1,7 @@
 package cli;
 
 import crypto.Encryption;
+import crypto.IntegrityViolationException;
 import crypto.KeyDerivation;
 import enums.Action;
 import enums.PersonType;
@@ -49,8 +50,12 @@ public class LogRead {
             byte[] key = KeyDerivation.deriveKey(token);
             Encryption encryption = new Encryption(key);
             return FileManager.readRecords(Paths.get(logPath), encryption);
-        } catch (Exception e) {
+        } catch (IntegrityViolationException e) {
             System.out.println(INTEGRITY_VIOLATION);
+            System.exit(111);
+            return null;
+        } catch (Exception e) {
+            System.out.println(INVALID);
             System.exit(111);
             return null;
         }
