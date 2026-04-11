@@ -305,11 +305,10 @@ public class LogRead {
             return new ParsedCommand(mode, token, logPath, subject.type, subject.name, new ArrayList<>());
         }
 
-        // INTERSECTION
         if (subjects.isEmpty()) return null;
         List<String> intersectionNames = new ArrayList<>();
         for (SubjectSpec subject : subjects) {
-            intersectionNames.add(subject.type + "\u0000" + subject.name);
+            intersectionNames.add(subject.type.name() + "\u0000" + subject.name);
         }
         return new ParsedCommand(mode, token, logPath, null, null, intersectionNames);
     }
