@@ -27,8 +27,8 @@ public class Record {
 
     public Record(long timestamp, PersonType type, String name,
                   Action action, Place place, Integer roomId, long lastMoveTimestamp) {
-        if (timestamp < 0) {
-            throw new IllegalArgumentException("timestamp must be non-negative epoch seconds");
+        if (timestamp < 1 || timestamp > 1_073_741_823) {
+            throw new IllegalArgumentException("timestamp must be valid in epoch");
         }
         this.type = Objects.requireNonNull(type, "type must not be null");
 
