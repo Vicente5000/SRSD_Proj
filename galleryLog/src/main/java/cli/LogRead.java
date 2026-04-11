@@ -1,7 +1,6 @@
 package cli;
 
 import crypto.Encryption;
-import crypto.IntegrityViolationException;
 import crypto.KeyDerivation;
 import enums.Action;
 import enums.PersonType;
@@ -15,7 +14,6 @@ import java.util.*;
 public class LogRead {
     private static final String INVALID = "invalid";
     private static final String INTEGRITY_VIOLATION = "integrity violation";
-    private static final String UNIMPLEMENTED = "unimplemented";
 
     public static void main(String[] args) {
         String rawCommand = String.join(" ", args);
@@ -26,7 +24,7 @@ public class LogRead {
         ParsedCommand command = parse(rawCommand);
         if (command == null) {
             System.out.println(INVALID);
-            return;
+            System.exit(111);
         }
 
         switch (command.mode) {
@@ -41,6 +39,7 @@ public class LogRead {
                 return;
             default:
                 System.out.println(INVALID);
+                System.exit(111);
         }
     }
 
@@ -50,18 +49,15 @@ public class LogRead {
             byte[] key = KeyDerivation.deriveKey(token);
             Encryption encryption = new Encryption(key);
             return FileManager.readRecords(Paths.get(logPath), encryption);
-        } catch (IntegrityViolationException e) {
-            System.out.println(INTEGRITY_VIOLATION);
-            return null;
         } catch (Exception e) {
             System.out.println(INTEGRITY_VIOLATION);
+            System.exit(111);
             return null;
         }
     }
 
     private void readState(String logPath, String token) {
         List<Record> records = loadRecords(logPath, token);
-        if (records == null) return;
 
         Set<String> employeesInGallery = new HashSet<>();
         Set<String> guestsInGallery    = new HashSet<>();
@@ -120,15 +116,12 @@ public class LogRead {
 
     private void readRooms(String logPath, String token, PersonType subjectType, String subjectName) {
         List<Record> records = loadRecords(logPath, token);
-        if (records == null) return;
 
         List<Integer> roomsVisited = new ArrayList<>();
-        Set<Integer> seen = new HashSet<>();
 
         for (Record record : records) {
             if (!record.name.equals(subjectName)) continue;
             if (!(record.type == subjectType)) continue;
-
             if (record.action == Action.ARRIVE && record.place == Place.ROOM) {
                 roomsVisited.add(record.roomId);
             }
@@ -144,8 +137,6 @@ public class LogRead {
 
     private void readIntersection(String logPath, String token, List<String> intersectionNames) {
         List<Record> records = loadRecords(logPath, token);
-        if (records == null) return;
-
 
         List<SubjectSpec> subjects = new ArrayList<>();
         for (String encoded : intersectionNames) {
@@ -187,7 +178,7 @@ public class LogRead {
 
 
         Set<Integer> candidateRooms = new HashSet<>();
-        for (int[] interval : personRoomIntervals.get(subjects.get(0).type.name() + "\u0000" + subjects.get(0).name)) {
+        for (int[] interval : personRoomIntervals.get(subjects.getFirst().type.name() + "\u0000" + subjects.getFirst().name)) {
             candidateRooms.add(interval[0]);
         }
 
@@ -301,7 +292,7 @@ public class LogRead {
 
         if (mode == Mode.ROOMS) {
             if (subjects.size() != 1) return null;
-            SubjectSpec subject = subjects.get(0);
+            SubjectSpec subject = subjects.getFirst();
             return new ParsedCommand(mode, token, logPath, subject.type, subject.name, new ArrayList<>());
         }
 
