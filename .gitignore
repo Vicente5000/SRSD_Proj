@@ -73,6 +73,3 @@ local.properties
 
 # logs
 galleryLog/logs/
-
-# batches
-galleryLog/batches/
