@@ -8,7 +8,6 @@ import java.security.InvalidParameterException;
 import java.util.List;
 
 import model.Record;
-import enums.PersonType;
 import crypto.Encryption;
 import crypto.IntegrityViolationException;
 import crypto.KeyDerivation;
@@ -19,7 +18,6 @@ public class LogAppend {
     private static final String INVALID = "invalid";
     private static final String INTEGRITY_VIOLATION = "integrity violation";
     private static final String UNIMPLEMENTED = "unimplemented";
-    private static final String PATH = "./logs/Logs.csv";
 
     public static void main(String[] args) {
         String rawCommand = String.join(" ", args);
@@ -142,6 +140,7 @@ public class LogAppend {
                     if (batchFile.startsWith("-")) {
                         return null;
                     }
+                    mode = Mode.BATCH;
                     break;
                 default:
                     if (part.startsWith("-")) {
@@ -202,8 +201,12 @@ public class LogAppend {
     }
 
     private void appendArrival(ParsedCommand command) {
-        List<Record> records = loadRecords(PATH, command.token);
+        List<Record> records = loadRecords(command.logPath, command.token);
         if(records == null){
+            throw new InvalidParameterException(INVALID);
+        }
+
+        if(records.isEmpty()){
             addRecord(command);
             return;
         }
@@ -212,10 +215,41 @@ public class LogAppend {
             throw new InvalidParameterException(INVALID);
         }
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
+
         if((lastEntry == null && command.roomId != null)){
             throw new InvalidParameterException(INVALID);
         }
+    
+        int currentRoom = getUserRoom(lastEntry);
+        boolean inGallery =(currentRoom == -2);
+    
+        if (inGallery && command.roomId == null) {
+            throw new InvalidParameterException(INVALID);
+        }
+        if (!inGallery && command.roomId != null) {
+            throw new InvalidParameterException(INVALID);
+        }
+    
+        if (currentRoom >= 0) {
+            throw new InvalidParameterException(INVALID);
+        }
+        
         addRecord(command);
+    }
+
+    private int getUserRoom(Record record){
+        if (record.place == Place.ROOM) {
+            if (record.action == Action.ARRIVE) {
+                return record.roomId;
+            }
+            return -1;
+        } else {
+            if (record.action == Action.ARRIVE){
+                return -1;
+            } else{
+                return -2;
+            }
+        }
     }
 
     private Record getLastUserEntry(String name, PersonType subjectType , List<Record> records){
@@ -269,7 +303,7 @@ public class LogAppend {
 
     private void addRecord(ParsedCommand command){
         try {
-            FileManager.replayAndAppend(Path.of(PATH), new Record(command.timestamp, command.subjectType, command.subjectName, Action.ARRIVE, Place.GALLERY, command.roomId), new Encryption(KeyDerivation.deriveKey(command.token)));
+            FileManager.replayAndAppend(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, Action.ARRIVE, Place.GALLERY, command.roomId), new Encryption(KeyDerivation.deriveKey(command.token)));
         } catch (IOException e) {
             throw new InvalidParameterException(INVALID);
         }
