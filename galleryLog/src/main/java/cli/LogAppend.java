@@ -262,36 +262,34 @@ public class LogAppend {
         }
 
         if(records.isEmpty()){
-            addRecord(command);
-            return;
+            throw new InvalidParameterException(INVALID);
         }
 
         if(command.timestamp <= records.getLast().timestamp){
             throw new InvalidParameterException(INVALID);
         }
+
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
-            if(command.roomId != null){
-                throw new InvalidParameterException(INVALID);
-            }
-            addRecord(command);
-            return;
+            throw new InvalidParameterException(INVALID);
         }
+
         int currentRoom = getUserRoom(lastEntry);
         boolean inGallery = (currentRoom != -2);
     
-        if (inGallery && command.roomId == null) {
+        if(!inGallery){
             throw new InvalidParameterException(INVALID);
         }
-        if (!inGallery && command.roomId != null) {
+
+        if (currentRoom == -1 && command.roomId != null) {
             throw new InvalidParameterException(INVALID);
         }
-    
-        if (currentRoom >= 0) {
+
+        if (currentRoom >= 0 && (command.roomId == null || currentRoom != command.roomId)) {
             throw new InvalidParameterException(INVALID);
         }
-        
+
         addRecord(command);
     }
 
