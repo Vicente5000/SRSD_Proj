@@ -5,19 +5,22 @@ import javax.crypto.spec.PBEKeySpec;
 
 public class KeyDerivation {
 
-    private static final byte[] SALT = "GalleryLogSalt!!".getBytes();
+    private static final byte[] SALT = "GalleryLogSalt!!".getBytes(java.nio.charset.StandardCharsets.UTF_8);
     private static final int ITERATIONS = 65536;
     private static final int KEY_BITS = 256;
 
     public static byte[] deriveKey(String token) {
+        PBEKeySpec spec = null;
         try {
-            var spec = new PBEKeySpec(token.toCharArray(), SALT, ITERATIONS, KEY_BITS);
+            spec = new PBEKeySpec(token.toCharArray(), SALT, ITERATIONS, KEY_BITS);
             return SecretKeyFactory
                     .getInstance("PBKDF2WithHmacSHA256")
                     .generateSecret(spec)
                     .getEncoded();
         } catch (Exception e) {
             throw new RuntimeException("Key derivation failed", e);
+        } finally {
+            if (spec != null) spec.clearPassword();
         }
     }
 }
