@@ -29,7 +29,7 @@ public class LogAppend {
     public void handle(String rawCommand) {
         ParsedCommand command = parse(rawCommand);
         if (command == null) {
-            System.out.println(INVALID);
+            System.err.println(INVALID);
             return;
         }
 
@@ -202,13 +202,15 @@ public class LogAppend {
         }
 
         if(command.timestamp <= records.getLast().timestamp){
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INTEGRITY_VIOLATION);
+            System.exit(111);
         }
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
             if(command.roomId != null){
-                throw new InvalidParameterException(INVALID);
+                System.err.println(INVALID);
+                System.exit(111);
             }
             addRecord(command);
             return;
@@ -217,14 +219,17 @@ public class LogAppend {
         boolean inGallery = (currentRoom != -2);
     
         if (inGallery && command.roomId == null) {
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
         if (!inGallery && command.roomId != null) {
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
     
         if (currentRoom >= 0) {
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
         
         addRecord(command);
@@ -262,32 +267,38 @@ public class LogAppend {
         }
 
         if(records.isEmpty()){
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
 
         if(command.timestamp <= records.getLast().timestamp){
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INTEGRITY_VIOLATION);
+            System.exit(111);
         }
 
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
 
         int currentRoom = getUserRoom(lastEntry);
         boolean inGallery = (currentRoom != -2);
     
         if(!inGallery){
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
 
         if (currentRoom == -1 && command.roomId != null) {
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
 
         if (currentRoom >= 0 && (command.roomId == null || currentRoom != command.roomId)) {
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
 
         addRecord(command);
@@ -301,14 +312,14 @@ public class LogAppend {
                handleBatch(line);
             }
         } catch (IOException e) {
-            System.out.println(INVALID);
+            System.err.println(INVALID);
             System.exit(111);
         }
     }
 
     private void handleBatch(String rawCommand){
         if(rawCommand.contains("-B")){
-            System.err.println("Batch file cannot contain batch command");
+            System.err.println("INVALID");
             return;
         }    
         handle(rawCommand);
@@ -333,9 +344,11 @@ public class LogAppend {
         try {
             FileManager.replayAndAppend(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, command.action, command.place, command.roomId), new Encryption(KeyDerivation.deriveKey(command.token)));
         } catch (IntegrityViolationException e) {
-            System.out.println(INTEGRITY_VIOLATION);
+            System.err.println(INVALID);
+            System.exit(111);
         } catch (IOException e) {
-            throw new InvalidParameterException(INVALID);
+            System.err.println(INVALID);
+            System.exit(111);
         }
     }
 
