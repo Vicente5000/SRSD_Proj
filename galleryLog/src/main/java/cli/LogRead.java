@@ -164,10 +164,12 @@ public class LogRead {
 
     private void readState(String logPath) {
         //add error when multiple subjects
+        System.out.println(UNIMPLEMENTED);
     }
 
     private void readRooms(String logPath, String subjectType, String subjectName) {
         //add error when multiple subjects
+        System.out.println(UNIMPLEMENTED);
     }
 
     private void readIntersection(List<String> names) {
