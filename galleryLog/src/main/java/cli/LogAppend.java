@@ -160,7 +160,7 @@ public class LogAppend {
             if (timestamp != null || subjectType != null || mode != null || roomId != null) {
                 return null;
             }
-            return new ParsedCommand(Mode.BATCH, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId);
+            return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId);
         }
 
         if (timestamp == null || subjectType == null || subjectName == null || mode == null) {
@@ -171,7 +171,7 @@ public class LogAppend {
             return null;
         }
 
-        return new ParsedCommand(Mode.BATCH, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId);
+        return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId);
     }
 
     private Integer parseBoundedInt(String value) {
