@@ -51,7 +51,7 @@ public class LogRead {
         }
 
         String[] parts = trimmed.split("\\s+");
-        if (parts.length < 2 || !"logread".equals(parts[0])) {
+        if (parts.length < 1) {
             return null;
         }
 
@@ -60,7 +60,7 @@ public class LogRead {
         String logPath = null;
         List<SubjectSpec> subjects = new ArrayList<>();
 
-        for (int index = 1; index < parts.length; index++) {
+        for (int index = 0; index < parts.length; index++) {
             String part = parts[index];
 
             switch (part) {
