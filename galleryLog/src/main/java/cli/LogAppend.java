@@ -33,13 +33,19 @@ public class LogAppend {
 
         switch (command.mode) {
             case ARRIVAL:
-                appendArrival(command);
+                if(appendArrival(command) == -1){
+                    System.exit(111);
+                }
                 return;
             case LEAVE:
-                appendLeave(command);
+                if(appendLeave(command) == -1){
+                    System.exit(111);
+                }
                 return;
             case BATCH:
-                appendBatch(command.batchFile);
+                if(appendBatch(command.batchFile) == -1){
+                    System.exit(111);
+                }
                 return;
             default:
                 System.out.println(INVALID);
@@ -201,47 +207,55 @@ public class LogAppend {
     }
 
 
-    private void appendArrival(ParsedCommand command) {
+    private int appendArrival(ParsedCommand command) {
         Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token));
         List<Record> records = loadRecords(command.logPath, command.token, enc);
         if(records == null){
-            return;
+            return -1;
         }
 
         if(records.isEmpty()){
-            addRecord(command, 0, enc);
-            return;
+            if(addRecord(command, 0, enc) == -1){
+                return -1;
+            }
+            return 0;
         }
 
         if(command.timestamp <= records.getLast().timestamp){
             System.out.println(INTEGRITY_VIOLATION);
-            System.exit(111);
+            return -1;
         }
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
             if(command.roomId != null){
                 System.out.println(INVALID);
-                System.exit(111);
+                return -1;
             }
             addRecord(command, 0, enc);
-            return;
+            return 0;
         }
         int currentRoom = getUserRoom(lastEntry);
     
         if (currentRoom == -2) {
             if (command.roomId != null) {
-                System.out.println(INVALID); System.exit(111);
+                System.out.println(INVALID);
+                return -1;
             }
         } else if (currentRoom == -1) {
             if (command.roomId == null) {
-                System.out.println(INVALID); System.exit(111);
+                System.out.println(INVALID);
+                return -1;
             }
         } else {
-            System.out.println(INVALID); System.exit(111);
+            System.out.println(INVALID);
+            return -1;
         }
         
-        addRecord(command, lastEntry.timestamp, enc);
+        if(addRecord(command, lastEntry.timestamp, enc) == -1){
+            return -1;
+        }
+        return 0;
     }
 
     private int getUserRoom(Record record){
@@ -269,28 +283,29 @@ public class LogAppend {
         return null;
     }
 
-    private void appendLeave(ParsedCommand command) {
+    private int appendLeave(ParsedCommand command) {
         Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token));
         List<Record> records = loadRecords(command.logPath, command.token,enc);
         if(records == null){
-            return;
+            System.out.println(INVALID);
+            return -1 ;
         }
 
         if(records.isEmpty()){
             System.out.println(INVALID);
-            System.exit(111);
+            return -1;
         }
 
         if(command.timestamp <= records.getLast().timestamp){
             System.out.println(INTEGRITY_VIOLATION);
-            System.exit(111);
+            return -1;
         }
 
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
             System.out.println(INVALID);
-            System.exit(111);
+            return -1;
         }
 
         int currentRoom = getUserRoom(lastEntry);
@@ -298,42 +313,52 @@ public class LogAppend {
     
         if(!inGallery){
             System.out.println(INVALID);
-            System.exit(111);
+            return -1;
         }
 
         if (currentRoom == -1 && command.roomId != null) {
             System.out.println(INVALID);
-            System.exit(111);
+            return -1;
         }
 
         if (currentRoom >= 0 && (command.roomId == null || currentRoom != command.roomId)) {
             System.out.println(INVALID);
-            System.exit(111);
+            return -1;
         }
 
-        addRecord(command, lastEntry.timestamp, enc);
+        if(addRecord(command, lastEntry.timestamp, enc) == -1){
+            return -1;
+        }
+        return 0;
     }
 
-    private void appendBatch(String batchFile) {
+    private int appendBatch(String batchFile) {
         try{
             List<String> lines = Files.readAllLines(Path.of(batchFile), StandardCharsets.UTF_8);
             for(int i = 0; i < lines.size(); i++){
                 String line = lines.get(i);
-                handleBatch(line);
+                ParsedCommand command = parse(line);
+                if (command == null) {
+                    System.out.println(INVALID);
+                }
+
+                switch (command.mode) {
+                    case ARRIVAL:
+                        appendArrival(command);
+                        break;
+                    case LEAVE:
+                        appendLeave(command);
+                        break;
+                    default:
+                        System.out.println(INVALID);
+                        break;
+                }
             }
         } catch (IOException e) {
             System.out.println(INVALID);
-            System.exit(111);
+            return -1;
         }
-    }
-
-    private void handleBatch(String rawCommand){
-        if(rawCommand.contains("-B")){
-            System.out.println(INVALID);
-            return;
-        }    
-        handle(rawCommand);
-        
+        return 0;
     }
 
     private List<Record> loadRecords(String logPath, String token, Encryption enc) {
@@ -349,15 +374,16 @@ public class LogAppend {
         }
     }
 
-    private void addRecord(ParsedCommand command, long lastTimeStamp, Encryption enc){
+    private int addRecord(ParsedCommand command, long lastTimeStamp, Encryption enc){
         try {
             FileManager.writeRecord(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, command.action, command.place, command.roomId, lastTimeStamp), enc);
+            return 0;
         } catch (IntegrityViolationException e) {
             System.out.println(INVALID);
-            System.exit(111);
+            return -1;
         } catch (IOException e) {
             System.out.println(INVALID);
-            System.exit(111);
+            return -1;
         }
     }
 
