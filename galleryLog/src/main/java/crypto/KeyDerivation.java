@@ -2,17 +2,20 @@ package crypto;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 public class KeyDerivation {
 
-    private static final byte[] SALT = "GalleryLogSalt!!".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    private static final byte[] BASE_SALT = "GalleryLogSalt!!".getBytes(StandardCharsets.UTF_8);
     private static final int ITERATIONS = 65536;
     private static final int KEY_BITS = 256;
 
-    public static byte[] deriveKey(String token) {
+    public static byte[] deriveKey(String token, String logContext) {
         PBEKeySpec spec = null;
         try {
-            spec = new PBEKeySpec(token.toCharArray(), SALT, ITERATIONS, KEY_BITS);
+            byte[] contextualSalt = deriveContextualSalt(logContext);
+            spec = new PBEKeySpec(token.toCharArray(), contextualSalt, ITERATIONS, KEY_BITS);
             return SecretKeyFactory
                     .getInstance("PBKDF2WithHmacSHA256")
                     .generateSecret(spec)
@@ -21,6 +24,18 @@ public class KeyDerivation {
             throw new RuntimeException("Key derivation failed", e);
         } finally {
             if (spec != null) spec.clearPassword();
+        }
+    }
+
+    private static byte[] deriveContextualSalt(String logContext) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(BASE_SALT);
+            digest.update((byte) 0);
+            digest.update((logContext == null ? "" : logContext).getBytes(StandardCharsets.UTF_8));
+            return digest.digest();
+        } catch (Exception e) {
+            throw new RuntimeException("salt derivation failed", e);
         }
     }
 }

@@ -210,7 +210,7 @@ public class LogAppend {
 
 
     private void appendArrival(ParsedCommand command) {
-        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token));
+        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token, command.logPath));
         List<Record> records = loadRecords(command.logPath, command.token, enc);
         if(records == null){
             return;
@@ -281,7 +281,7 @@ public class LogAppend {
     }
 
     private void appendLeave(ParsedCommand command) {
-        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token));
+        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token, command.logPath));
         List<Record> records = loadRecords(command.logPath, command.token,enc);
         if(records == null){
             return;
@@ -353,7 +353,6 @@ public class LogAppend {
 
     private List<Record> loadRecords(String logPath, String token, Encryption enc) {
         try {
-            byte[] key = KeyDerivation.deriveKey(token);
             return FileManager.readRecords(Paths.get(logPath), enc);
         } catch (IntegrityViolationException e) {
             fail(INTEGRITY_VIOLATION);

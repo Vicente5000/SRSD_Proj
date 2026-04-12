@@ -47,7 +47,7 @@ public class LogRead {
 
     private List<Record> loadRecords(String logPath, String token) {
         try {
-            byte[] key = KeyDerivation.deriveKey(token);
+            byte[] key = KeyDerivation.deriveKey(token, logPath);
             Encryption encryption = new Encryption(key);
             return FileManager.readRecords(Paths.get(logPath), encryption);
         } catch (IntegrityViolationException e) {
