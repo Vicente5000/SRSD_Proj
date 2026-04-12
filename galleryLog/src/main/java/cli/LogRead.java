@@ -67,7 +67,7 @@ public class LogRead {
         Set<String> employeesInGallery = new HashSet<>();
         Set<String> guestsInGallery    = new HashSet<>();
 
-        Map<Integer, Set<String>> roomOccupants = new HashMap<>();
+        Map<Integer, Map<String, Integer>> roomOccupants = new HashMap<>();
 
         for (Record record : records) {
             String name = record.name;
@@ -78,8 +78,8 @@ public class LogRead {
                     else                                     guestsInGallery.add(name);
                 } else {
                     roomOccupants
-                            .computeIfAbsent(record.roomId, k -> new HashSet<>())
-                            .add(name);
+                            .computeIfAbsent(record.roomId, k -> new HashMap<>())
+                            .merge(name, 1, Integer::sum);
                 }
 
             } else {
@@ -87,9 +87,16 @@ public class LogRead {
                     if (record.type == PersonType.EMPLOYEE) employeesInGallery.remove(name);
                     else                                     guestsInGallery.remove(name);
                 } else {
-                    Set<String> occupants = roomOccupants.get(record.roomId);
+                    Map<String, Integer> occupants = roomOccupants.get(record.roomId);
                     if (occupants != null) {
-                        occupants.remove(name);
+                        Integer count = occupants.get(name);
+                        if (count != null) {
+                            if (count <= 1) {
+                                occupants.remove(name);
+                            } else {
+                                occupants.put(name, count - 1);
+                            }
+                        }
                         if (occupants.isEmpty()) roomOccupants.remove(record.roomId);
                     }
                 }
@@ -111,7 +118,12 @@ public class LogRead {
         List<Integer> roomIds = new ArrayList<>(roomOccupants.keySet());
         Collections.sort(roomIds);
         for (int roomId : roomIds) {
-            List<String> names = new ArrayList<>(roomOccupants.get(roomId));
+            List<String> names = new ArrayList<>();
+            for (Map.Entry<String, Integer> occupant : roomOccupants.get(roomId).entrySet()) {
+                for (int i = 0; i < occupant.getValue(); i++) {
+                    names.add(occupant.getKey());
+                }
+            }
             Collections.sort(names);
             sb.append(roomId).append(", ").append(String.join(",", names)).append("\n");
         }
