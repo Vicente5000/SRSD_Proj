@@ -18,6 +18,7 @@ public class LogAppend {
     private static final String INVALID = "invalid";
     private static final String INTEGRITY_VIOLATION = "integrity violation";
     private static final String UNIMPLEMENTED = "unimplemented";
+    private boolean inBatchMode = false;
 
     public static void main(String[] args) {
         String rawCommand = String.join(" ", args);
@@ -27,7 +28,7 @@ public class LogAppend {
     public void handle(String rawCommand) {
         ParsedCommand command = parse(rawCommand);
         if (command == null) {
-            System.out.println(INVALID);
+            fail(INVALID);
             return;
         }
 
@@ -42,8 +43,15 @@ public class LogAppend {
                 appendBatch(command.batchFile);
                 return;
             default:
-                System.out.println(INVALID);
-                System.exit(111);
+                fail(INVALID);
+                return;
+        }
+    }
+
+    private void fail(String message) {
+        System.out.println(message);
+        if (!inBatchMode) {
+            System.exit(111);
         }
     }
 
@@ -214,15 +222,15 @@ public class LogAppend {
         }
 
         if(command.timestamp <= records.getLast().timestamp){
-            System.out.println(INTEGRITY_VIOLATION);
-            System.exit(111);
+            fail(INTEGRITY_VIOLATION);
+            return;
         }
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
             if(command.roomId != null){
-                System.out.println(INVALID);
-                System.exit(111);
+                fail(INVALID);
+                return;
             }
             addRecord(command, 0, enc);
             return;
@@ -231,14 +239,17 @@ public class LogAppend {
     
         if (currentRoom == -2) {
             if (command.roomId != null) {
-                System.out.println(INVALID); System.exit(111);
+                fail(INVALID);
+                return;
             }
         } else if (currentRoom == -1) {
             if (command.roomId == null) {
-                System.out.println(INVALID); System.exit(111);
+                fail(INVALID);
+                return;
             }
         } else {
-            System.out.println(INVALID); System.exit(111);
+            fail(INVALID);
+            return;
         }
         
         addRecord(command, lastEntry.timestamp, enc);
@@ -277,38 +288,38 @@ public class LogAppend {
         }
 
         if(records.isEmpty()){
-            System.out.println(INVALID);
-            System.exit(111);
+            fail(INVALID);
+            return;
         }
 
         if(command.timestamp <= records.getLast().timestamp){
-            System.out.println(INTEGRITY_VIOLATION);
-            System.exit(111);
+            fail(INTEGRITY_VIOLATION);
+            return;
         }
 
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
 
         if(lastEntry == null ){
-            System.out.println(INVALID);
-            System.exit(111);
+            fail(INVALID);
+            return;
         }
 
         int currentRoom = getUserRoom(lastEntry);
         boolean inGallery = (currentRoom != -2);
     
         if(!inGallery){
-            System.out.println(INVALID);
-            System.exit(111);
+            fail(INVALID);
+            return;
         }
 
         if (currentRoom == -1 && command.roomId != null) {
-            System.out.println(INVALID);
-            System.exit(111);
+            fail(INVALID);
+            return;
         }
 
         if (currentRoom >= 0 && (command.roomId == null || currentRoom != command.roomId)) {
-            System.out.println(INVALID);
-            System.exit(111);
+            fail(INVALID);
+            return;
         }
 
         addRecord(command, lastEntry.timestamp, enc);
@@ -316,20 +327,22 @@ public class LogAppend {
 
     private void appendBatch(String batchFile) {
         try{
+            inBatchMode = true;
             List<String> lines = Files.readAllLines(Path.of(batchFile), StandardCharsets.UTF_8);
             for(int i = 0; i < lines.size(); i++){
                 String line = lines.get(i);
                 handleBatch(line);
             }
         } catch (IOException e) {
-            System.out.println(INVALID);
-            System.exit(111);
+            fail(INVALID);
+        } finally {
+            inBatchMode = false;
         }
     }
 
     private void handleBatch(String rawCommand){
         if(rawCommand.contains("-B")){
-            System.out.println(INVALID);
+            fail(INVALID);
             return;
         }    
         handle(rawCommand);
@@ -341,10 +354,10 @@ public class LogAppend {
             byte[] key = KeyDerivation.deriveKey(token);
             return FileManager.readRecords(Paths.get(logPath), enc);
         } catch (IntegrityViolationException e) {
-            System.out.println(INTEGRITY_VIOLATION);
+            fail(INTEGRITY_VIOLATION);
             return null;
         } catch (Exception e) {
-            System.out.println(INTEGRITY_VIOLATION);
+            fail(INTEGRITY_VIOLATION);
             return null;
         }
     }
@@ -353,11 +366,9 @@ public class LogAppend {
         try {
             FileManager.writeRecord(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, command.action, command.place, command.roomId, lastTimeStamp), enc);
         } catch (IntegrityViolationException e) {
-            System.out.println(INVALID);
-            System.exit(111);
+            fail(INVALID);
         } catch (IOException e) {
-            System.out.println(INVALID);
-            System.exit(111);
+            fail(INVALID);
         }
     }
 
