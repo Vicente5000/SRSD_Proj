@@ -334,7 +334,9 @@ public class LogAppend {
                 handleBatch(line);
             }
         } catch (IOException e) {
+            inBatchMode = false;
             fail(INVALID);
+            return;
         } finally {
             inBatchMode = false;
         }
