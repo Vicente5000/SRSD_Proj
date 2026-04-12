@@ -47,10 +47,15 @@ public class Encryption {
             throw new IllegalArgumentException("entry must not be null");
         }
         
+        byte[] expectedPrevHash = Arrays.copyOf(lastEntryHash, HASH_LEN);
+        if (!MessageDigest.isEqual(expectedPrevHash, entry.hashOfLastEntry)) {
+            throw new IntegrityViolationException(new IllegalArgumentException("broken entry chain"));
+        }
+
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         GCMParameterSpec gcmSpec = new GCMParameterSpec(GCM_TAG_BITS, entry.iv);
         cipher.init(Cipher.DECRYPT_MODE, encKey, gcmSpec);
-        cipher.updateAAD(entry.hashOfLastEntry);
+        cipher.updateAAD(expectedPrevHash);
 
         try {
             byte[] plaintext = cipher.doFinal(entry.cipherText);
