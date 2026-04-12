@@ -172,51 +172,37 @@ public class LogRead {
             subjects.add(new SubjectSpec(type, parts[1]));
         }
 
-        Map<String, List<int[]>> personRoomIntervals = new HashMap<>();
-
-        for (SubjectSpec subject : subjects) {
-            String key = subject.type.name() + "\u0000" + subject.name;
-            personRoomIntervals.put(key, new ArrayList<>());
+        QueryIndex index = buildQueryIndex(records, subjects);
+        if (index.subjectHistories.isEmpty()) {
+            return;
         }
 
-        Map<String, int[]> currentRoomEntry = new HashMap<>();
+        SubjectSpec seed = index.pickSeedSubject();
+        if (seed == null) {
+            return;
+        }
 
-        for (Record record : records) {
-            String key = record.type.name() + "\u0000" + record.name;
-            if (!personRoomIntervals.containsKey(key)) continue;
-            if (record.place != Place.ROOM) continue;
-
-            if (record.action == Action.ARRIVE) {
-                currentRoomEntry.put(key, new int[]{record.roomId, (int) record.timestamp});
-
-            } else {
-                int[] entry = currentRoomEntry.remove(key);
-                if (entry != null) {
-                    personRoomIntervals.get(key).add(new int[]{entry[0], entry[1], (int) record.timestamp});
-                }
+        Set<Integer> candidateRooms = new HashSet<>(index.historyFor(seed).roomsVisited);
+        for (SubjectSpec subject : subjects) {
+            if (subject.equals(seed)) {
+                continue;
+            }
+            candidateRooms.retainAll(index.historyFor(subject).roomsVisited);
+            if (candidateRooms.isEmpty()) {
+                return;
             }
         }
 
-        for (Map.Entry<String, int[]> open : currentRoomEntry.entrySet()) {
-            int[] entry = open.getValue();
-            personRoomIntervals.get(open.getKey()).add(new int[]{entry[0], entry[1], Integer.MAX_VALUE});
-        }
-
-
-        Set<Integer> candidateRooms = new HashSet<>();
-        for (int[] interval : personRoomIntervals.get(subjects.getFirst().type.name() + "\u0000" + subjects.getFirst().name)) {
-            candidateRooms.add(interval[0]);
-        }
-
         List<Integer> result = new ArrayList<>();
-
         for (int roomId : candidateRooms) {
-            if (allOverlappedInRoom(roomId, subjects, personRoomIntervals)) {
+            if (index.roomHasOverlap(roomId, subjects)) {
                 result.add(roomId);
             }
         }
 
-        if (result.isEmpty()) return;
+        if (result.isEmpty()) {
+            return;
+        }
 
         Collections.sort(result);
         System.out.println(result.stream()
@@ -224,39 +210,32 @@ public class LogRead {
                 .collect(java.util.stream.Collectors.joining(",")));
     }
 
-    private boolean allOverlappedInRoom(int roomId, List<SubjectSpec> subjects,
-                                        Map<String, List<int[]>> personRoomIntervals) {
-        List<List<int[]>> allIntervals = new ArrayList<>();
+    private QueryIndex buildQueryIndex(List<Record> records, List<SubjectSpec> subjects) {
+        QueryIndex index = new QueryIndex(subjects);
+        Map<String, OpenRoomEntry> currentRoomEntry = new HashMap<>();
 
-        for (SubjectSpec subject : subjects) {
-            String key = subject.type.name() + "\u0000" + subject.name;
-            List<int[]> inRoom = new ArrayList<>();
-            for (int[] interval : personRoomIntervals.get(key)) {
-                if (interval[0] == roomId) inRoom.add(interval);
+        for (Record record : records) {
+            String key = record.type.name() + "\u0000" + record.name;
+            SubjectHistory history = index.subjectHistories.get(key);
+            if (history == null || record.place != Place.ROOM) {
+                continue;
             }
-            if (inRoom.isEmpty()) return false;
-            allIntervals.add(inRoom);
-        }
 
-        return hasOverlap(allIntervals, 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
-    }
-
-    private boolean hasOverlap(List<List<int[]>> allIntervals, int subjectIndex,
-                               int overlapStart, int overlapEnd) {
-        if (subjectIndex == allIntervals.size()) {
-            return overlapStart < overlapEnd;
-        }
-
-        for (int[] interval : allIntervals.get(subjectIndex)) {
-            int newStart = Math.max(overlapStart, interval[1]);
-            int newEnd   = Math.min(overlapEnd,   interval[2]);
-            if (newStart < newEnd) {
-                if (hasOverlap(allIntervals, subjectIndex + 1, newStart, newEnd)) {
-                    return true;
+            if (record.action == Action.ARRIVE) {
+                currentRoomEntry.put(key, new OpenRoomEntry(record.roomId, (int) record.timestamp));
+            } else {
+                OpenRoomEntry entry = currentRoomEntry.remove(key);
+                if (entry != null) {
+                    history.addSpan(entry.roomId, entry.startTime, (int) record.timestamp);
                 }
             }
         }
-        return false;
+
+        for (Map.Entry<String, OpenRoomEntry> open : currentRoomEntry.entrySet()) {
+            index.subjectHistories.get(open.getKey()).addSpan(open.getValue().roomId, open.getValue().startTime, Integer.MAX_VALUE);
+        }
+
+        return index;
     }
 
 
@@ -340,4 +319,114 @@ public class LogRead {
                                  List<String> intersectionNames) { }
 
     private record SubjectSpec(PersonType type, String name) { }
+
+    private record OpenRoomEntry(int roomId, int startTime) { }
+
+    private static final class QueryIndex {
+        private final Map<String, SubjectHistory> subjectHistories = new HashMap<>();
+
+        private QueryIndex(List<SubjectSpec> subjects) {
+            for (SubjectSpec subject : subjects) {
+                subjectHistories.put(subjectKey(subject), new SubjectHistory());
+            }
+        }
+
+        private SubjectHistory historyFor(SubjectSpec subject) {
+            return subjectHistories.get(subjectKey(subject));
+        }
+
+        private SubjectSpec pickSeedSubject() {
+            SubjectSpec best = null;
+            int bestSpanCount = Integer.MAX_VALUE;
+            for (String key : subjectHistories.keySet()) {
+                SubjectHistory history = subjectHistories.get(key);
+                if (history.roomsVisited.isEmpty()) {
+                    continue;
+                }
+                int spanCount = history.spanCount();
+                if (spanCount < bestSpanCount) {
+                    bestSpanCount = spanCount;
+                    best = subjectFromKey(key);
+                }
+            }
+            return best;
+        }
+
+        private boolean roomHasOverlap(int roomId, List<SubjectSpec> subjects) {
+            List<int[]> intersection = null;
+            for (SubjectSpec subject : subjects) {
+                List<int[]> spans = historyFor(subject).spansForRoom(roomId);
+                if (spans.isEmpty()) {
+                    return false;
+                }
+                if (intersection == null) {
+                    intersection = new ArrayList<>(spans);
+                } else {
+                    intersection = intersectIntervals(intersection, spans);
+                    if (intersection.isEmpty()) {
+                        return false;
+                    }
+                }
+            }
+            return intersection != null && !intersection.isEmpty();
+        }
+
+        private static List<int[]> intersectIntervals(List<int[]> left, List<int[]> right) {
+            List<int[]> result = new ArrayList<>();
+            int leftIndex = 0;
+            int rightIndex = 0;
+
+            while (leftIndex < left.size() && rightIndex < right.size()) {
+                int[] leftInterval = left.get(leftIndex);
+                int[] rightInterval = right.get(rightIndex);
+
+                int start = Math.max(leftInterval[1], rightInterval[1]);
+                int end = Math.min(leftInterval[2], rightInterval[2]);
+                if (start < end) {
+                    result.add(new int[]{leftInterval[0], start, end});
+                }
+
+                if (leftInterval[2] < rightInterval[2]) {
+                    leftIndex++;
+                } else {
+                    rightIndex++;
+                }
+            }
+
+            return result;
+        }
+
+        private static String subjectKey(SubjectSpec subject) {
+            return subject.type.name() + "\u0000" + subject.name;
+        }
+
+        private static SubjectSpec subjectFromKey(String key) {
+            String[] parts = key.split("\u0000", 2);
+            PersonType type = PersonType.valueOf(parts[0]);
+            return new SubjectSpec(type, parts[1]);
+        }
+    }
+
+    private static final class SubjectHistory {
+        private final Map<Integer, List<int[]>> spansByRoom = new HashMap<>();
+        private final Set<Integer> roomsVisited = new HashSet<>();
+
+        private void addSpan(int roomId, int startTime, int endTime) {
+            spansByRoom.computeIfAbsent(roomId, ignored -> new ArrayList<>())
+                    .add(new int[]{roomId, startTime, endTime});
+            roomsVisited.add(roomId);
+        }
+
+        private List<int[]> spansForRoom(int roomId) {
+            return spansByRoom.getOrDefault(roomId, List.of());
+        }
+
+        private int spanCount() {
+            int count = 0;
+            for (List<int[]> spans : spansByRoom.values()) {
+                count += spans.size();
+            }
+            return count;
+        }
+    }
 }
