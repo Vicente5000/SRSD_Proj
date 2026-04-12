@@ -55,6 +55,14 @@ public class LogAppend {
         }
     }
 
+    private String resolveLogPath(String rawLogPath) {
+        Path path = Path.of(rawLogPath);
+        if (!path.isAbsolute()) {
+            path = Path.of("logs").resolve(path).normalize();
+        }
+        return path.toString();
+    }
+
     private ParsedCommand parse(String rawCommand) {
         if (rawCommand == null) {
             return null;
@@ -183,7 +191,7 @@ public class LogAppend {
             return null;
         }
 
-        return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId, mode == Mode.ARRIVAL ? Action.ARRIVE : Action.LEAVE, roomId != null ? Place.ROOM : Place.GALLERY);
+        return new ParsedCommand(mode, token, resolveLogPath(logPath), batchFile, timestamp, subjectType, subjectName, roomId, mode == Mode.ARRIVAL ? Action.ARRIVE : Action.LEAVE, roomId != null ? Place.ROOM : Place.GALLERY);
     }
 
     private Integer parseBoundedInt(String value) {
@@ -365,7 +373,12 @@ public class LogAppend {
 
     private void addRecord(ParsedCommand command, long lastTimeStamp, Encryption enc){
         try {
-            FileManager.writeRecord(Path.of(command.logPath), new Record(command.timestamp, command.subjectType, command.subjectName, command.action, command.place, command.roomId, lastTimeStamp), enc);
+            Path logPath = Path.of(command.logPath);
+            Path parent = logPath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            FileManager.writeRecord(logPath, new Record(command.timestamp, command.subjectType, command.subjectName, command.action, command.place, command.roomId, lastTimeStamp), enc);
         } catch (IntegrityViolationException e) {
             fail(INVALID);
         } catch (IOException e) {

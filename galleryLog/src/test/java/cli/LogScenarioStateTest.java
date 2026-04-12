@@ -6,6 +6,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,8 +17,10 @@ class LogScenarioStateTest {
     Path tempDir;
 
     @Test
-    void stateMatchesExpectedForEmployeeAndGuestRoomFlow() {
-        Path logPath = tempDir.resolve("log1");
+    void stateMatchesExpectedForEmployeeAndGuestRoomFlow() throws Exception {
+        Path logsDir = tempDir.resolve("logs");
+        Files.createDirectories(logsDir);
+        Path logPath = logsDir.resolve("log1");
         String log = logPath.toString();
 
         LogAppend append = new LogAppend();
