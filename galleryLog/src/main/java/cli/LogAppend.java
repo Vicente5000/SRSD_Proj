@@ -55,21 +55,6 @@ public class LogAppend {
         }
     }
 
-    private Path resolveLogPath(String rawLogPath) {
-        Path path = Path.of(rawLogPath);
-        if (!path.isAbsolute()) {
-            path = Path.of("logs").resolve(path).normalize();
-        }
-        return path;
-    }
-
-    private Path resolveLogPath(Path rawLogPath) {
-        if (rawLogPath == null) {
-            return null;
-        }
-        return resolveLogPath(rawLogPath.toString());
-    }
-
     private ParsedCommand parse(String rawCommand) {
         if (rawCommand == null) {
             return null;
@@ -191,7 +176,7 @@ public class LogAppend {
             if (timestamp != null || subjectType != null || mode != Mode.BATCH || roomId != null) {
                 return null;
             }
-            return new ParsedCommand(mode, token, resolveLogPath(logPath), batchFile, timestamp, subjectType, subjectName, roomId, null, null);
+            return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId, null, null);
         }
 
         if (timestamp == null || subjectType == null || subjectName == null || mode == null) {
@@ -201,7 +186,7 @@ public class LogAppend {
         return new ParsedCommand(
                 mode,
                 token,
-                resolveLogPath(logPath),
+                logPath,
                 batchFile,
                 timestamp,
                 subjectType,

@@ -45,15 +45,6 @@ public class LogRead {
         }
     }
 
-    private String resolveLogPath(String rawLogPath) {
-        Path path = Path.of(rawLogPath);
-        if (!path.isAbsolute()) {
-            path = Path.of("logs").resolve(path).normalize();
-        }
-        return path.toString();
-    }
-
-
     private List<Record> loadRecords(String logPath, String token) {
         try {
             byte[] key = KeyDerivation.deriveKey(token, logPath);
@@ -292,13 +283,13 @@ public class LogRead {
 
         if (mode == Mode.STATE) {
             if (!subjects.isEmpty()) return null;
-            return new ParsedCommand(mode, token, resolveLogPath(logPath), null, null, new ArrayList<>());
+            return new ParsedCommand(mode, token, logPath, null, null, new ArrayList<>());
         }
 
         if (mode == Mode.ROOMS) {
             if (subjects.size() != 1) return null;
             SubjectSpec subject = subjects.getFirst();
-            return new ParsedCommand(mode, token, resolveLogPath(logPath), subject.type, subject.name, new ArrayList<>());
+            return new ParsedCommand(mode, token, logPath, subject.type, subject.name, new ArrayList<>());
         }
 
         if (subjects.isEmpty()) return null;
@@ -306,7 +297,7 @@ public class LogRead {
         for (SubjectSpec subject : subjects) {
             intersectionNames.add(subject.type.name() + "\u0000" + subject.name);
         }
-        return new ParsedCommand(mode, token, resolveLogPath(logPath), null, null, intersectionNames);
+        return new ParsedCommand(mode, token, logPath, null, null, intersectionNames);
     }
 
     private PersonType toSubjectTag(String flag) {
