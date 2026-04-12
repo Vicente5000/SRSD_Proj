@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import model.Record;
@@ -55,12 +54,19 @@ public class LogAppend {
         }
     }
 
-    private String resolveLogPath(String rawLogPath) {
+    private Path resolveLogPath(String rawLogPath) {
         Path path = Path.of(rawLogPath);
         if (!path.isAbsolute()) {
             path = Path.of("logs").resolve(path).normalize();
         }
-        return path.toString();
+        return path;
+    }
+
+    private Path resolveLogPath(Path rawLogPath) {
+        if (rawLogPath == null) {
+            return null;
+        }
+        return resolveLogPath(rawLogPath.toString());
     }
 
     private ParsedCommand parse(String rawCommand) {
@@ -80,7 +86,7 @@ public class LogAppend {
 
         Integer timestamp = null;
         String token = null;
-        String logPath = null;
+        Path logPath = null;
         PersonType subjectType = null;
         String subjectName = null;
         Integer roomId = null;
@@ -171,7 +177,7 @@ public class LogAppend {
                         return null;
                     }
 
-                    logPath = part;
+                    logPath = Path.of(part);
                     break;
             }
         }
@@ -184,7 +190,7 @@ public class LogAppend {
             if (timestamp != null || subjectType != null || mode != Mode.BATCH || roomId != null) {
                 return null;
             }
-            return new ParsedCommand(mode, token, logPath, batchFile, timestamp, subjectType, subjectName, roomId, null, null);
+            return new ParsedCommand(mode, token, resolveLogPath(logPath), batchFile, timestamp, subjectType, subjectName, roomId, null, null);
         }
 
         if (timestamp == null || subjectType == null || subjectName == null || mode == null) {
@@ -218,7 +224,7 @@ public class LogAppend {
     }
 
     private void appendArrival(ParsedCommand command) {
-        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token, command.logPath));
+        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token, command.logPath.toString()));
         List<Record> records = loadRecords(command.logPath, enc);
         if(records == null){
             return;
@@ -293,7 +299,7 @@ public class LogAppend {
     }
 
     private void appendLeave(ParsedCommand command) {
-        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token, command.logPath));
+        Encryption enc = new Encryption(KeyDerivation.deriveKey(command.token, command.logPath.toString()));
         List<Record> records = loadRecords(command.logPath, enc);
         if(records == null){
             return;
@@ -375,9 +381,9 @@ public class LogAppend {
         }
     }
 
-    private List<Record> loadRecords(String logPath, Encryption enc) {
+    private List<Record> loadRecords(Path logPath, Encryption enc) {
         try {
-            return FileManager.readRecords(Paths.get(logPath), enc);
+            return FileManager.readRecords(logPath, enc);
         } catch (IntegrityViolationException e) {
             fail(INTEGRITY_VIOLATION);
             return null;
@@ -389,13 +395,12 @@ public class LogAppend {
 
     private void addRecord(ParsedCommand command, long lastTimeStamp, Encryption enc){
         try {
-            Path logPath = Path.of(command.logPath);
-            Path parent = logPath.getParent();
+            Path parent = command.logPath.getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
             FileManager.writeRecord(
-                    logPath,
+                    command.logPath,
                     new Record(
                             command.timestamp,
                             command.subjectType,
@@ -423,7 +428,7 @@ public class LogAppend {
     private static final record ParsedCommand(
             Mode mode,
             String token,
-            String logPath,
+            Path logPath,
             String batchFile,
             Integer timestamp,
             PersonType subjectType,
