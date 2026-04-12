@@ -10,12 +10,12 @@ import javax.crypto.*;
 import javax.crypto.spec.*;
 import java.io.*;
 import java.security.*;
-import java.util.Arrays;
 
 public class Encryption {
     private static final int IV_LEN = Entry.IV_LEN;
     private static final int GCM_TAG_BITS = 128;
     private static final int HASH_LEN = Entry.HASH_LEN;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     /** Fixed overhead for an encoded entry: IV + hashOfLastEntry. */
     public static final int ENTRY_FIXED_OVERHEAD = IV_LEN + HASH_LEN;
@@ -46,20 +46,19 @@ public class Encryption {
         if (entry == null) {
             throw new IllegalArgumentException("entry must not be null");
         }
-        
-        byte[] expectedPrevHash = Arrays.copyOf(lastEntryHash, HASH_LEN);
-        if (!MessageDigest.isEqual(expectedPrevHash, entry.hashOfLastEntry)) {
+
+        if (!MessageDigest.isEqual(lastEntryHash, entry.hashOfLastEntry)) {
             throw new IntegrityViolationException(new IllegalArgumentException("broken entry chain"));
         }
 
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         GCMParameterSpec gcmSpec = new GCMParameterSpec(GCM_TAG_BITS, entry.iv);
         cipher.init(Cipher.DECRYPT_MODE, encKey, gcmSpec);
-        cipher.updateAAD(expectedPrevHash);
+        cipher.updateAAD(lastEntryHash);
 
         try {
             byte[] plaintext = cipher.doFinal(entry.cipherText);
-            lastEntryHash = sha256(entry.toBytes());
+            lastEntryHash = sha256Entry(entry.iv, entry.cipherText, entry.hashOfLastEntry);
             return deserializeRecord(plaintext);
         } catch (AEADBadTagException e) {
             throw new IntegrityViolationException(e);
@@ -81,7 +80,7 @@ public class Encryption {
             throw new IllegalArgumentException("plaintext must not be null");
         }
 
-        byte[] hashOfLastEntry = Arrays.copyOf(lastEntryHash, HASH_LEN);
+        byte[] hashOfLastEntry = lastEntryHash;
         byte[] iv = randomBytes(IV_LEN);
 
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
@@ -91,7 +90,7 @@ public class Encryption {
 
         byte[] cipherText = cipher.doFinal(plaintext);
         Entry entry = new Entry(iv, cipherText, hashOfLastEntry);
-        lastEntryHash = sha256(entry.toBytes());
+        lastEntryHash = sha256Entry(entry.iv, entry.cipherText, entry.hashOfLastEntry);
         return entry;
     }
 
@@ -181,9 +180,21 @@ public class Encryption {
         }
     }
 
+    private byte[] sha256Entry(byte[] iv, byte[] cipherText, byte[] hashOfLastEntry) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(iv);
+            digest.update(cipherText);
+            digest.update(hashOfLastEntry);
+            return digest.digest();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
+    }
+
     private byte[] randomBytes(int len) {
         byte[] b = new byte[len];
-        new SecureRandom().nextBytes(b);
+        SECURE_RANDOM.nextBytes(b);
         return b;
     }
 
