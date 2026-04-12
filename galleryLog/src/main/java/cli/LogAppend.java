@@ -91,7 +91,7 @@ public class LogAppend {
         PersonType subjectType = null;
         String subjectName = null;
         Integer roomId = null;
-        String batchFile = null;
+        Path batchFile = null;
         Mode mode = null;
 
         for (int index = 0; index < parts.length; index++) {
@@ -167,8 +167,8 @@ public class LogAppend {
                     if (index + 1 >= parts.length) {
                         return null;
                     }
-                    batchFile = parts[++index];
-                    if (batchFile.startsWith("-")) {
+                    batchFile = Path.of(parts[++index]);
+                    if (batchFile.toString().startsWith("-")) {
                         return null;
                     }
                     mode = Mode.BATCH;
@@ -344,9 +344,9 @@ public class LogAppend {
         addRecord(command, lastEntry.timestamp, enc);
     }
 
-    private void appendBatch(String batchFile) {
+    private void appendBatch(Path batchFile) {
         inBatchMode = true;
-        try (BufferedReader reader = Files.newBufferedReader(Path.of(batchFile), StandardCharsets.UTF_8)) {
+        try (BufferedReader reader = Files.newBufferedReader(batchFile, StandardCharsets.UTF_8)) {
             String line;
             while ((line = reader.readLine()) != null) {
                 handleBatchLine(line);
@@ -425,7 +425,7 @@ public class LogAppend {
             Mode mode,
             String token,
             Path logPath,
-            String batchFile,
+            Path batchFile,
             Integer timestamp,
             PersonType subjectType,
             String subjectName,
