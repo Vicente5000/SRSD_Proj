@@ -225,6 +225,10 @@ public class LogAppend {
         }
 
         if(records.isEmpty()){
+            if (command.roomId != null) {
+                fail(INVALID);
+                return;
+            }
             addRecord(command, 0, enc);
             return;
         }

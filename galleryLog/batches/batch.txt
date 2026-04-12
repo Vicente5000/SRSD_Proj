@@ -1,6 +1,0 @@
--T 40 -K secret123 -A -G Carvallho  ./logs/log1.csv
--T 41 -K secret123 -A -G Carvallho -R 2 ./logs/log1.csv
--T 42 -K secret123 -L -G Carvallho -R 2  ./logs/log1.csv
--T 43 -K secret123 -A -G Carvallho -R 1 ./logs/log1.csv
--T 44 -K secret123 -L -G Carvallho -R 1  ./logs/log1.csv
--T 45 -K secret123 -L -G Carvallho ./logs/log1.csv

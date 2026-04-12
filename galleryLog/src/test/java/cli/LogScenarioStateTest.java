@@ -40,4 +40,33 @@ class LogScenarioStateTest {
 
         assertEquals("Fred\nJill\n1, Fred,Jill\n", output.toString(StandardCharsets.UTF_8));
     }
+
+    @Test
+    void fredRoomHistoryMatchesExpectedSequence() throws Exception {
+        Path logsDir = tempDir.resolve("logs");
+        Files.createDirectories(logsDir);
+        Path logPath = logsDir.resolve("log1");
+        String log = logPath.toString();
+
+        LogAppend append = new LogAppend();
+        append.handle("-T 1 -K secret -A -E Fred " + log);
+        append.handle("-T 2 -K secret -A -E Fred -R 1 " + log);
+        append.handle("-T 5 -K secret -L -E Fred -R 1 " + log);
+        append.handle("-T 6 -K secret -A -E Fred -R 2 " + log);
+        append.handle("-T 7 -K secret -L -E Fred -R 2 " + log);
+        append.handle("-T 8 -K secret -A -E Fred -R 3 " + log);
+        append.handle("-T 9 -K secret -L -E Fred -R 3 " + log);
+        append.handle("-T 10 -K secret -A -E Fred -R 1 " + log);
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        try {
+            System.setOut(new PrintStream(output, true, StandardCharsets.UTF_8));
+            new LogRead().handle("-K secret -R -E Fred " + log);
+        } finally {
+            System.setOut(originalOut);
+        }
+
+        assertEquals("1,2,3,1\n", output.toString(StandardCharsets.UTF_8));
+    }
 }
