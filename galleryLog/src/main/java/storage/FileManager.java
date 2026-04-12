@@ -6,6 +6,7 @@ import model.Entry;
 import model.Record;
 
 import javax.crypto.AEADBadTagException;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,21 +25,23 @@ public final class FileManager {
             return new ArrayList<>();
         }
 
-        List<String> lines = Files.readAllLines(filePath, StandardCharsets.UTF_8);
-        List<Record> records = new ArrayList<>(lines.size());
+        List<Record> records = new ArrayList<>();
 
-        for (String line : lines) {
-            if (line.isBlank()) {
-                throw new IntegrityViolationException(new IllegalArgumentException("blank log line"));
-            }
+        try (BufferedReader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    throw new IntegrityViolationException(new IllegalArgumentException("blank log line"));
+                }
 
-            try {
-                records.add(encryption.decrypt(line));
-            } catch (AEADBadTagException e) {
-                // GCM tag failure = chain broken or file tampered
-                throw new IntegrityViolationException(e);
-            } catch (Exception e) {
-                throw new IntegrityViolationException(e);
+                try {
+                    records.add(encryption.decrypt(line));
+                } catch (AEADBadTagException e) {
+                    // GCM tag failure = chain broken or file tampered
+                    throw new IntegrityViolationException(e);
+                } catch (Exception e) {
+                    throw new IntegrityViolationException(e);
+                }
             }
         }
 
