@@ -40,6 +40,13 @@ class LogBatchFilesTest {
         "-K secret -T 3 -A -R 0 -G James LOG_PATH"
     );
 
+    private static final List<String> JOHN_JAMES_VALID_BATCH_LINES = List.of(
+        "-K secret -T 1 -A -E John LOG_PATH",
+        "-K secret -T 2 -A -R 0 -E John LOG_PATH",
+        "-K secret -T 3 -A -G James LOG_PATH",
+        "-K secret -T 4 -A -R 0 -G James LOG_PATH"
+    );
+
     @TempDir
     Path tempDir;
 
@@ -86,6 +93,20 @@ class LogBatchFilesTest {
 
         String state = readState(logPath.toString(), "secret");
         assertEquals("\nJames\n0, James\n", state);
+    }
+
+    @Test
+    void johnJamesValidBatchKeepsBothInRoomZero() throws Exception {
+        Path logPath = tempDir.resolve("log2");
+        Path rewrittenBatch = tempDir.resolve("johnJamesValidBatch.txt");
+
+        writeBatchFile(rewrittenBatch, JOHN_JAMES_VALID_BATCH_LINES, logPath.toString());
+
+        String appendOutput = captureOutput(() -> new LogAppend().handle("-B " + rewrittenBatch));
+        assertEquals("", appendOutput);
+
+        String state = readState(logPath.toString(), "secret");
+        assertEquals("John\nJames\n0, James,John\n", state);
     }
 
     private static String readState(String logPath, String token) {
