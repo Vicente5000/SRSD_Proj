@@ -1,6 +1,7 @@
 package cli;
 
 import java.io.IOException;
+import java.io.BufferedReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -344,19 +345,14 @@ public class LogAppend {
     }
 
     private void appendBatch(String batchFile) {
-        List<String> lines;
-        try {
-            lines = Files.readAllLines(Path.of(batchFile), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            fail(INVALID);
-            return;
-        }
-
         inBatchMode = true;
-        try {
-            for (String line : lines) {
+        try (BufferedReader reader = Files.newBufferedReader(Path.of(batchFile), StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
                 handleBatchLine(line);
             }
+        } catch (IOException e) {
+            fail(INVALID);
         } finally {
             inBatchMode = false;
         }
