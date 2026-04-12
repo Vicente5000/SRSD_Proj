@@ -28,7 +28,9 @@ public final class FileManager {
         List<Record> records = new ArrayList<>(lines.size());
 
         for (String line : lines) {
-            if (line.isBlank()) continue;
+            if (line.isBlank()) {
+                throw new IntegrityViolationException(new IllegalArgumentException("blank log line"));
+            }
 
             try {
                 records.add(encryption.decrypt(line));
