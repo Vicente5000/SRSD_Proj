@@ -3,6 +3,7 @@ package crypto;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 
 public class KeyDerivation {
@@ -32,10 +33,17 @@ public class KeyDerivation {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(BASE_SALT);
             digest.update((byte) 0);
-            digest.update((logContext == null ? "" : logContext).getBytes(StandardCharsets.UTF_8));
+            digest.update(canonicalizeLogContext(logContext).getBytes(StandardCharsets.UTF_8));
             return digest.digest();
         } catch (Exception e) {
             throw new RuntimeException("salt derivation failed", e);
         }
+    }
+
+    private static String canonicalizeLogContext(String logContext) {
+        if (logContext == null || logContext.isBlank()) {
+            return "";
+        }
+        return Path.of(logContext).toAbsolutePath().normalize().toString();
     }
 }
