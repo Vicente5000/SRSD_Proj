@@ -226,7 +226,7 @@ public class LogAppend {
         }
 
         if(command.timestamp <= records.getLast().timestamp){
-            fail(INTEGRITY_VIOLATION);
+            fail(INVALID);
             return;
         }
         Record lastEntry = getLastUserEntry(command.subjectName, command.subjectType, records);
@@ -297,7 +297,7 @@ public class LogAppend {
         }
 
         if(command.timestamp <= records.getLast().timestamp){
-            fail(INTEGRITY_VIOLATION);
+            fail(INVALID);
             return;
         }
 
@@ -366,10 +366,10 @@ public class LogAppend {
         try {
             return FileManager.readRecords(logPath, enc);
         } catch (IntegrityViolationException e) {
-            fail(INTEGRITY_VIOLATION);
+            fail(INVALID);
             return null;
         } catch (Exception e) {
-            fail(INTEGRITY_VIOLATION);
+            fail(INVALID);
             return null;
         }
     }
