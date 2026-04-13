@@ -27,8 +27,7 @@ public class Encryption {
     public Encryption(byte[] encryptionKey) {
         requireLen(encryptionKey, 32, "encryptionKey");
         this.encKey = new SecretKeySpec(encryptionKey, "AES");
-        long time = System.currentTimeMillis();
-        System.out.println("Encryption initialized at " + time);
+        long time = System.currentTimeMillis()/10;
         this.r = new Random(time);
     }
 
