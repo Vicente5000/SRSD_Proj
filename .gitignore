@@ -70,6 +70,3 @@ local.properties
 # VS Code (in case a teammate prefers it)
 .vscode/
 *.code-workspace
-
-# logs
-galleryLog/logs/

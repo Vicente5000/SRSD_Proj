@@ -1,0 +1,13 @@
+-T 40 -K sxcvbgrxcvbjuyghnj -A -E Alice ./logs/log2.csv
+-T 41 -K sxcvbgrxcvbjuyghnj -A -G Carvallho  ./logs/log2.csv
+-T 42 -K sxcvbgrxcvbjuyghnj -A -E Ricardo ./logs/log2.csv
+-T 43 -K sxcvbgrxcvbjuyghnj -A -E Ricardo -R 3 ./logs/log2.csv
+-T 44 -K sxcvbgrxcvbjuyghnj -A -G Carvallho -R 2 ./logs/log2.csv
+-T 45 -K sxcvbgrxcvbjuyghnj -A -E Alice -R 3 ./logs/log2.csv
+-T 46 -K sxcvbgrxcvbjuyghnj -L -G Carvallho -R 2 ./logs/log2.csv
+-T 47 -K sxcvbgrxcvbjuyghnj -A -G Carvallho -R 1 ./logs/log2.csv
+-T 48 -K sxcvbgrxcvbjuyghnj -L -G Carvallho -R 1 ./logs/log2.csv
+-T 49 -K sxcvbgrxcvbjuyghnj -L -E Ricardo -R 3 ./logs/log2.csv
+-T 53 -K sxcvbgrxcvbjuyghnj -L -E Ricardo ./logs/log2.csv
+-T 56 -K sxcvbgrxcvbjuyghnj -L -G Carvallho ./logs/log2.csv
+-T 65 -K sxcvbgrxcvbjuyghnj -L -E Alice -R 3 ./logs/log2.csv
