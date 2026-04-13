@@ -10,12 +10,13 @@ import javax.crypto.*;
 import javax.crypto.spec.*;
 import java.io.*;
 import java.security.*;
+import java.util.Random;
 
 public class Encryption {
     private static final int IV_LEN = Entry.IV_LEN;
     private static final int GCM_TAG_BITS = 128;
     private static final int HASH_LEN = Entry.HASH_LEN;
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private final Random r;
 
     /** Fixed overhead for an encoded entry: IV + hashOfLastEntry. */
     public static final int ENTRY_FIXED_OVERHEAD = IV_LEN + HASH_LEN;
@@ -26,6 +27,9 @@ public class Encryption {
     public Encryption(byte[] encryptionKey) {
         requireLen(encryptionKey, 32, "encryptionKey");
         this.encKey = new SecretKeySpec(encryptionKey, "AES");
+        long time = System.currentTimeMillis();
+        System.out.println("Encryption initialized at " + time);
+        this.r = new Random(time);
     }
 
 
@@ -194,7 +198,7 @@ public class Encryption {
 
     private byte[] randomBytes(int len) {
         byte[] b = new byte[len];
-        SECURE_RANDOM.nextBytes(b);
+        r.nextBytes(b);
         return b;
     }
 
