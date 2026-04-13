@@ -8,7 +8,7 @@ import java.security.MessageDigest;
 
 public class KeyDerivation {
 
-    private static final byte[] BASE_SALT = "GalleryLogSalt!!".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] BASE_SALT = "Salt".getBytes(StandardCharsets.UTF_8);
     private static final int ITERATIONS = 65536;
     private static final int KEY_BITS = 256;
 
